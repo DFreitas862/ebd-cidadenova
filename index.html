@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>EBD Manager</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+</head>
+
+<body>
+
+    <!-- =====================================================
+         SIDEBAR
+         ===================================================== -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+
+            <div class="logo-icon">
+                E
+            </div>
+
+            <div>
+
+                <strong>
+                    EBD Manager
+                </strong>
+
+                <span>
+                    Gestão da Escola Bíblica
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <nav>
+
+            <button
+                class="menu-item active"
+                onclick="voltarDashboard()"
+            >
+                <span>⌂</span>
+                Dashboard
+            </button>
+
+
+            <button
+                class="menu-item"
+                onclick="abrirDashboardMetricas()"
+            >
+                <span>▥</span>
+                Métricas
+            </button>
+
+
+            <button
+                class="menu-item"
+                onclick="abrirModalClasse()"
+            >
+                <span>＋</span>
+                Nova Classe
+            </button>
+
+
+            <button
+                class="menu-item"
+                onclick="abrirModalAluno()"
+            >
+                <span>♙</span>
+                Novo Aluno
+            </button>
+
+        </nav>
+
+
+        <div class="sidebar-footer">
+
+            <span>
+                EBD Manager
+            </span>
+
+            <small>
+                Sistema de gestão
+            </small>
+
+        </div>
+
+    </aside>
+
+
+
+    <!-- =====================================================
+         CONTEÚDO
+         ===================================================== -->
+
+    <main class="main-content">
+
+
+        <!-- =================================================
+             DASHBOARD GERAL
+             ================================================= -->
+
+        <section id="dashboard">
+
+            <div class="page-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        VISÃO GERAL
+                    </span>
+
+                    <h1>
+                        Dashboard
+                    </h1>
+
+                    <p>
+                        Acompanhe o movimento da sua EBD.
+                    </p>
+
+                </div>
+
+
+                <div class="header-actions">
+
+                    <button
+                        class="btn btn-light"
+                        onclick="abrirDashboardMetricas()"
+                    >
+                        📊 Métricas
+                    </button>
+
+
+                    <button
+                        class="btn btn-primary"
+                        onclick="abrirModalAluno()"
+                    >
+                        + Aluno
+                    </button>
+
+
+                    <button
+                        class="btn btn-secondary"
+                        onclick="abrirModalClasse()"
+                    >
+                        + Nova Classe
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- DATA -->
+
+            <div class="date-filter">
+
+                <label>
+                    Ver informações do dia
+                </label>
+
+                <input
+                    type="date"
+                    id="dataDashboard"
+                    onchange="atualizarDashboard()"
+                >
+
+            </div>
+
+
+            <!-- ESTATÍSTICAS -->
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        ▦
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Classes
+                        </span>
+
+                        <strong id="totalClasses">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        👥
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Alunos
+                        </span>
+
+                        <strong id="totalAlunos">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card success">
+
+                    <div class="stat-icon">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Presenças
+                        </span>
+
+                        <strong id="totalPresencas">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card danger">
+
+                    <div class="stat-icon">
+                        ×
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ausentes
+                        </span>
+
+                        <strong id="totalAusentes">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card warning">
+
+                    <div class="stat-icon">
+                        ★
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Visitantes
+                        </span>
+
+                        <strong id="totalVisitantes">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card money">
+
+                    <div class="stat-icon">
+                        R$
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ofertas
+                        </span>
+
+                        <strong id="totalOfertas">
+                            R$ 0,00
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- RESUMO DO DIA -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            RESUMO
+                        </span>
+
+                        <h2>
+                            Movimento do dia
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="resumoDoDia"
+                    class="daily-summary"
+                ></div>
+
+            </div>
+
+
+            <!-- CLASSES -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            CLASSES
+                        </span>
+
+                        <h2>
+                            Suas classes
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="listaClasses"
+                    class="classes-grid"
+                ></div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             DASHBOARD DE MÉTRICAS
+             ================================================= -->
+
+        <section
+            id="dashboardMetricas"
+            class="hidden"
+        >
+
+            <div class="page-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        DESEMPENHO
+                    </span>
+
+                    <h1>
+                        Métricas da EBD
+                    </h1>
+
+                    <p>
+                        Compare o desempenho deste mês com o mês anterior.
+                    </p>
+
+                </div>
+
+
+                <div class="header-actions">
+
+                    <button
+                        class="btn btn-light"
+                        onclick="voltarDashboard()"
+                    >
+                        ← Dashboard
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- CARDS -->
+
+            <div class="stats-grid metricas-grid">
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        ▦
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Classes
+                        </span>
+
+                        <strong id="metricaClasses">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendClasses"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        👥
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Alunos
+                        </span>
+
+                        <strong id="metricaAlunos">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendAlunos"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        🎓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Professores
+                        </span>
+
+                        <strong id="metricaProfessores">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendProfessores"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        📚
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Aulas
+                        </span>
+
+                        <strong id="metricaAulas">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendAulas"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card success">
+
+                    <div class="stat-icon">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Presenças
+                        </span>
+
+                        <strong id="metricaPresencas">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendPresencas"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        %
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Frequência
+                        </span>
+
+                        <strong id="metricaFrequencia">
+                            0%
+                        </strong>
+
+                        <small
+                            id="trendFrequencia"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card warning">
+
+                    <div class="stat-icon">
+                        ★
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Visitantes
+                        </span>
+
+                        <strong id="metricaVisitantes">
+                            0
+                        </strong>
+
+                        <small
+                            id="trendVisitantes"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card money">
+
+                    <div class="stat-icon">
+                        R$
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ofertas
+                        </span>
+
+                        <strong id="metricaOfertas">
+                            R$ 0,00
+                        </strong>
+
+                        <small
+                            id="trendOfertas"
+                            class="trend"
+                        >
+                            —
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ANÁLISE -->
+
+            <div class="metric-comparison">
+
+                <div class="metric-comparison-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            ANÁLISE
+                        </span>
+
+                        <h2>
+                            A EBD está melhorando?
+                        </h2>
+
+                        <p>
+                            Comparação entre este mês e o mês anterior.
+                        </p>
+
+                    </div>
+
+
+                    <div
+                        id="resultadoGeral"
+                        class="resultado-geral"
+                    >
+                        —
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="metricasComparacao"
+                ></div>
+
+            </div>
+
+
+            <!-- CLASSES -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            DESEMPENHO
+                        </span>
+
+                        <h2>
+                            Desempenho por classe
+                        </h2>
+
+                        <p>
+                            Veja quais classes estão crescendo ou precisam de atenção.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="desempenhoClasses"
+                ></div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             DASHBOARD DA CLASSE
+             ================================================= -->
+
+        <section
+            id="telaClasse"
+            class="hidden class-dashboard"
+        >
+
+            <div class="class-dashboard-header">
+
+                <div>
+
+                    <button
+                        class="btn btn-light"
+                        onclick="voltarDashboard()"
+                    >
+                        ← Voltar
+                    </button>
+
+                    <span class="eyebrow">
+                        CLASSE
+                    </span>
+
+                    <h1 id="tituloClasse">
+                        Classe
+                    </h1>
+
+                    <p id="infoClasse">
+                        —
+                    </p>
+
+                </div>
+
+
+                <div class="header-actions">
+
+                    <button
+                        class="btn btn-primary"
+                        onclick="abrirModalAlunoClasseAtual()"
+                    >
+                        + Aluno
+                    </button>
+
+
+                    <button
+                        class="btn btn-light"
+                        onclick="abrirHistorico()"
+                    >
+                        Histórico
+                    </button>
+
+
+                    <button
+                        class="btn btn-secondary"
+                        onclick="abrirNovaAula()"
+                    >
+                        + Nova Aula
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- MÉTRICAS DA CLASSE -->
+
+            <div class="stats-grid class-stats-grid">
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        ▦
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Classe
+                        </span>
+
+                        <strong
+                            id="classeNomeCard"
+                            class="stat-text"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        👥
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Alunos
+                        </span>
+
+                        <strong id="classeTotalAlunos">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        📚
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Aulas
+                        </span>
+
+                        <strong id="classeTotalAulas">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card success">
+
+                    <div class="stat-icon">
+                        ✓
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Presenças
+                        </span>
+
+                        <strong id="classeTotalPresencas">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card danger">
+
+                    <div class="stat-icon">
+                        ×
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ausentes
+                        </span>
+
+                        <strong id="classeTotalAusentes">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card warning">
+
+                    <div class="stat-icon">
+                        ★
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Visitantes
+                        </span>
+
+                        <strong id="classeTotalVisitantes">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card money">
+
+                    <div class="stat-icon">
+                        R$
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Ofertas
+                        </span>
+
+                        <strong id="classeTotalOfertas">
+                            R$ 0,00
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-icon">
+                        %
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Frequência
+                        </span>
+
+                        <strong id="classeFrequencia">
+                            0%
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- RESUMO -->
+
+            <div class="class-summary-panel">
+
+                <div class="summary-main">
+
+                    <div class="summary-icon">
+                        📊
+                    </div>
+
+                    <div>
+
+                        <span class="eyebrow">
+                            RESUMO DA CLASSE
+                        </span>
+
+                        <h2 id="resumoNomeClasse">
+                            —
+                        </h2>
+
+                        <p id="resumoInfoClasse">
+                            —
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="summary-items">
+
+                    <div>
+
+                        <span>
+                            Aulas
+                        </span>
+
+                        <strong id="resumoAulas">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            Presenças
+                        </span>
+
+                        <strong id="resumoPresencas">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            Visitantes
+                        </span>
+
+                        <strong id="resumoVisitantes">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            Ofertas
+                        </span>
+
+                        <strong id="resumoOfertas">
+                            R$ 0,00
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- RANKING -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            FREQUÊNCIA
+                        </span>
+
+                        <h2>
+                            Ranking de alunos
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="rankingAlunos"
+                    class="ranking-list"
+                ></div>
+
+            </div>
+
+
+            <!-- ALUNOS -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            CADASTRO
+                        </span>
+
+                        <h2>
+                            Alunos da classe
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="alunosClasse"
+                    class="students-list"
+                ></div>
+
+            </div>
+
+
+            <!-- AULAS -->
+
+            <div class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            AULAS
+                        </span>
+
+                        <h2>
+                            Aulas recentes
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="aulasClasse"
+                    class="lessons-grid"
+                ></div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             TELA DE AULA
+             ================================================= -->
+
+        <section
+            id="telaAula"
+            class="hidden"
+        >
+
+            <div class="page-header">
+
+                <div>
+
+                    <button
+                        class="btn btn-light"
+                        onclick="voltarClasse()"
+                    >
+                        ← Voltar
+                    </button>
+
+                    <span class="eyebrow">
+                        AULA
+                    </span>
+
+                    <h1 id="tituloAula">
+                        Nova Aula
+                    </h1>
+
+                    <p id="subtituloAula">
+                        Registre a aula e faça a chamada.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="form-layout">
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <h2>
+                            Informações da aula
+                        </h2>
+
+                    </div>
+
+
+                    <div class="form-grid">
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Data
+                            </label>
+
+                            <input
+                                type="date"
+                                id="dataAula"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Tema da aula
+                            </label>
+
+                            <input
+                                type="text"
+                                id="temaAula"
+                                placeholder="Digite o tema"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Professor
+                            </label>
+
+                            <select
+                                id="professorAula"
+                            >
+
+                                <option value="">
+                                    Selecione
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Visitantes
+                            </label>
+
+                            <input
+                                type="number"
+                                id="visitantesAula"
+                                min="0"
+                                value="0"
+                            >
+
+                        </div>
+
+
+                        <div class="form-group">
+
+                            <label>
+                                Oferta
+                            </label>
+
+                            <input
+                                type="number"
+                                id="ofertaAula"
+                                min="0"
+                                step="0.01"
+                                value="0"
+                            >
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- CHAMADA -->
+
+                <div class="panel">
+
+                    <div class="panel-header">
+
+                        <div>
+
+                            <span class="eyebrow">
+                                PRESENÇA
+                            </span>
+
+                            <h2>
+                                Chamada
+                            </h2>
+
+                        </div>
+
+
+                        <div
+                            id="contadorPresenca"
+                            class="attendance-counter"
+                        >
+                            0 presentes
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="listaChamada"
+                        class="attendance-list"
+                    ></div>
+
+
+                    <div class="form-actions">
+
+                        <button
+                            class="btn btn-light"
+                            onclick="voltarClasse()"
+                        >
+                            Cancelar
+                        </button>
+
+
+                        <button
+                            class="btn btn-primary"
+                            onclick="salvarAula()"
+                        >
+                            Salvar Aula
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             HISTÓRICO
+             ================================================= -->
+
+        <section
+            id="telaHistorico"
+            class="hidden"
+        >
+
+            <div class="page-header">
+
+                <div>
+
+                    <button
+                        class="btn btn-light"
+                        onclick="voltarClasse()"
+                    >
+                        ← Voltar
+                    </button>
+
+                    <span class="eyebrow">
+                        HISTÓRICO
+                    </span>
+
+                    <h1>
+                        Histórico de aulas
+                    </h1>
+
+                    <p id="subtituloHistorico">
+                        Todas as aulas desta classe.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="listaHistorico"
+                class="history-list"
+            ></div>
+
+        </section>
+
+    </main>
+
+
+
+    <!-- =====================================================
+         MODAL CLASSE
+         ===================================================== -->
+
+    <div
+        id="modalClasse"
+        class="modal hidden"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        CADASTRO
+                    </span>
+
+                    <h2>
+                        Nova Classe
+                    </h2>
+
+                </div>
+
+
+                <button
+                    class="modal-close"
+                    onclick="fecharModalClasse()"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    Nome da classe
+                </label>
+
+                <input
+                    type="text"
+                    id="nomeClasse"
+                    placeholder="Ex.: Adultos"
+                >
+
+            </div>
+
+
+            <div class="form-grid">
+
+                <div class="form-group">
+
+                    <label>
+                        Dia
+                    </label>
+
+                    <select id="diaClasse">
+
+                        <option value="Domingo">
+                            Domingo
+                        </option>
+
+                        <option value="Segunda-feira">
+                            Segunda-feira
+                        </option>
+
+                        <option value="Terça-feira">
+                            Terça-feira
+                        </option>
+
+                        <option value="Quarta-feira">
+                            Quarta-feira
+                        </option>
+
+                        <option value="Quinta-feira">
+                            Quinta-feira
+                        </option>
+
+                        <option value="Sexta-feira">
+                            Sexta-feira
+                        </option>
+
+                        <option value="Sábado">
+                            Sábado
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label>
+                        Horário
+                    </label>
+
+                    <input
+                        type="time"
+                        id="horarioClasse"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="form-actions">
+
+                <button
+                    class="btn btn-light"
+                    onclick="fecharModalClasse()"
+                >
+                    Cancelar
+                </button>
+
+
+                <button
+                    class="btn btn-primary"
+                    onclick="salvarClasse()"
+                >
+                    Salvar Classe
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         MODAL ALUNO
+         ===================================================== -->
+
+    <div
+        id="modalAluno"
+        class="modal hidden"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <span class="eyebrow">
+                        CADASTRO
+                    </span>
+
+                    <h2 id="tituloModalAluno">
+                        Novo Aluno
+                    </h2>
+
+                </div>
+
+
+                <button
+                    class="modal-close"
+                    onclick="fecharModalAluno()"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    Nome completo
+                </label>
+
+                <input
+                    type="text"
+                    id="nomeAluno"
+                    placeholder="Nome do aluno"
+                >
+
+            </div>
+
+
+            <div class="form-grid">
+
+                <div class="form-group">
+
+                    <label>
+                        Telefone
+                    </label>
+
+                    <input
+                        type="tel"
+                        id="telefoneAluno"
+                        placeholder="(11) 99999-9999"
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label>
+                        Data de nascimento
+                    </label>
+
+                    <input
+                        type="date"
+                        id="dataNascimentoAluno"
+                    >
+
+                </div>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label>
+                    Classe
+                </label>
+
+                <select
+                    id="classeAluno"
+                >
+
+                    <option value="">
+                        Selecione a classe
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <label class="checkbox-field">
+
+                <input
+                    type="checkbox"
+                    id="ehProfessor"
+                >
+
+                <span>
+                    Este aluno também é professor
+                </span>
+
+            </label>
+
+
+            <div class="form-actions">
+
+                <button
+                    class="btn btn-light"
+                    onclick="fecharModalAluno()"
+                >
+                    Cancelar
+                </button>
+
+
+                <button
+                    class="btn btn-primary"
+                    onclick="salvarAluno()"
+                >
+                    Salvar Aluno
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
