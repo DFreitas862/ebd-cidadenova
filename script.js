@@ -20,6 +20,11 @@ document.addEventListener("DOMContentLoaded", () => {
         data.value = obterHoje();
     }
 
+    const dataRel = document.getElementById("dataRelatorio");
+    if (dataRel) {
+        dataRel.value = obterHoje();
+    }
+
     if (window.supabase && typeof SUPABASE_URL !== 'undefined') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         carregarDadosDoBanco();
@@ -322,7 +327,7 @@ function mostrarClasses() {
 }
 
 /* =========================================================
-   MODAL CLASSE
+   MODAL CLASSE & EXCLUIR CLASSE
    ========================================================= */
 
 function abrirModalClasse() {
@@ -370,6 +375,28 @@ async function salvarClasse() {
     fecharModalClasse();
     await carregarDadosDoBanco();
     alert("Classe cadastrada com sucesso!");
+}
+
+async function excluirClasseAtual() {
+    if (!supabaseClient || !classeAtual) return;
+
+    const confirmacao = confirm(
+        `Deseja realmente excluir a classe "${classeAtual.nome}"?\n\n` +
+        `ATENÇÃO: Todos os alunos, aulas e registros de presença vinculados a esta classe também serão excluídos permanentemente!`
+    );
+
+    if (!confirmacao) return;
+
+    const { error } = await supabaseClient.from('classes').delete().eq('id', classeAtual.id);
+    if (error) {
+        console.error("Erro ao excluir classe:", error);
+        alert("Erro ao excluir classe.");
+        return;
+    }
+
+    alert("Classe excluída com sucesso!");
+    voltarDashboard();
+    await carregarDadosDoBanco();
 }
 
 /* =========================================================
@@ -771,7 +798,7 @@ function editarAluno(id) {
 }
 
 /* =========================================================
-   NOVA AULA
+   NOVA AULA (COM PROFESSORES GLOBAIS DA EBD)
    ========================================================= */
 
 function abrirNovaAula() {
@@ -780,11 +807,16 @@ function abrirNovaAula() {
         return;
     }
 
-    const professores = classeAtual.alunos.filter(aluno => aluno.ehProfessor === true);
+    // Coleta TODOS os professores cadastrados em QUALQUER classe da EBD
+    let todosProfessores = [];
+    classes.forEach(c => {
+        const profsDaClasse = c.alunos.filter(a => a.ehProfessor === true);
+        todosProfessores = todosProfessores.concat(profsDaClasse);
+    });
 
-    if (professores.length === 0) {
+    if (todosProfessores.length === 0) {
         alert(
-            "Esta classe ainda não possui nenhum aluno marcado como professor.\n\n" +
+            "A EBD ainda não possui nenhum aluno marcado como professor em nenhuma classe.\n\n" +
             "Abra o cadastro de um aluno e marque a opção \"Este aluno também é professor\"."
         );
         return;
@@ -802,19 +834,21 @@ function abrirNovaAula() {
     document.getElementById("visitantesAula").value = 0;
     document.getElementById("ofertaAula").value = 0;
 
-    carregarProfessores();
+    carregarProfessoresGlobais();
     mostrarChamada();
 }
 
-function carregarProfessores(professorSelecionado = "") {
+function carregarProfessoresGlobais(professorSelecionado = "") {
     const select = document.getElementById("professorAula");
     select.innerHTML = `<option value="">Selecione o professor</option>`;
 
-    if (!classeAtual) return;
+    let todosProfessores = [];
+    classes.forEach(c => {
+        const profsDaClasse = c.alunos.filter(a => a.ehProfessor === true);
+        todosProfessores = todosProfessores.concat(profsDaClasse);
+    });
 
-    const professores = classeAtual.alunos.filter(aluno => aluno.ehProfessor === true);
-
-    professores.forEach(professor => {
+    todosProfessores.forEach(professor => {
         select.innerHTML += `<option value="${professor.id}">${professor.nome}</option>`;
     });
 
@@ -848,7 +882,7 @@ function mostrarChamada(registrosExistentes = []) {
                     <button id="presente-${aluno.id}" class="attendance-btn ${status === 'presente' ? 'present' : ''}" onclick="marcarPresenca('${aluno.id}', 'presente')">
                         ✓ Presente
                     </button>
-                    <button id="ausente-${aluno.id}" class="attendance-btn ${status === 'ausente' ? 'absent' : ''}" onclick="marcarPresenca('${aluno.id}', 'ausente')">
+                    <button id="ausente-${aluno.id}" class="attendance-btn ${status === 'absent' ? 'absent' : ''}" onclick="marcarPresenca('${aluno.id}', 'ausente')">
                         × Ausente
                     </button>
                 </div>
@@ -1028,7 +1062,7 @@ function editarAula(id) {
     document.getElementById("visitantesAula").value = aula.visitantes || 0;
     document.getElementById("ofertaAula").value = aula.oferta || 0;
 
-    carregarProfessores(aula.professorId);
+    carregarProfessoresGlobais(aula.professorId);
     mostrarChamada(aula.presencas || []);
 }
 
@@ -1149,13 +1183,113 @@ function mostrarHistorico() {
 }
 
 /* =========================================================
-   DASHBOARD DE MÉTRICAS
+   DASHBOARD DE MÉTRICAS E RELATÓRIOS
    ========================================================= */
 
 function abrirDashboardMetricas() {
     esconderTodasTelas();
     document.getElementById("dashboardMetricas").classList.remove("hidden");
-    calcularMetricas();
+    mudarFiltroPeriodo();
+    calcularMetricasMensais();
+}
+
+function mudarFiltroPeriodo() {
+    const periodo = document.getElementById("filtroPeriodo").value;
+    const grupoData = document.getElementById("grupoDataEspecifica");
+
+    if (periodo === "dia") {
+        grupoData.style.display = "block";
+    } else {
+        grupoData.style.display = "none";
+    }
+
+    calcularRelatorioPeriodo();
+}
+
+function calcularRelatorioPeriodo() {
+    const periodo = document.getElementById("filtroPeriodo").value;
+    const dataRefStr = document.getElementById("dataRelatorio").value || obterHoje();
+    const dataRef = new Date(dataRefStr + "T00:00:00");
+
+    let aulasFiltradas = aulas.filter(aula => {
+        if (!aula.data) return false;
+        const dataAula = new Date(aula.data + "T00:00:00");
+
+        if (periodo === "dia") {
+            return aula.data === dataRefStr;
+        } else if (periodo === "semana") {
+            // Início e fim da semana (domingo a sábado)
+            const primeiroDia = new Date(dataRef);
+            primeiroDia.setDate(dataRef.getDate() - dataRef.getDay());
+            const ultimoDia = new Date(primeiroDia);
+            ultimoDia.setDate(primeiroDia.getDate() + 6);
+            return dataAula >= primeiroDia && dataAula <= ultimoDia;
+        } else if (periodo === "mes") {
+            return dataAula.getFullYear() === dataRef.getFullYear() && dataAula.getMonth() === dataRef.getMonth();
+        } else if (periodo === "trimestre") {
+            const mesAtual = dataAula.getMonth();
+            const trimestreAtual = Math.floor(mesAtual / 3);
+            const trimestreAula = Math.floor(dataAula.getMonth() / 3);
+            return dataAula.getFullYear() === dataRef.getFullYear() && trimestreAula === trimestreAtual;
+        }
+        return false;
+    });
+
+    const tbody = document.getElementById("tabelaRelatorioClasses");
+    tbody.innerHTML = "";
+
+    let totalMat = 0;
+    let totalPres = 0;
+    let totalAus = 0;
+    let totalVis = 0;
+    let totalOfe = 0;
+
+    if (classes.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nenhuma classe cadastrada.</td></tr>`;
+    } else {
+        classes.forEach(classe => {
+            const aulasDaClasse = aulasFiltradas.filter(a => String(a.classeId) === String(classe.id));
+            const matriculados = classe.alunos.length;
+            
+            let presencas = 0;
+            let ausentes = 0;
+            let visitantes = 0;
+            let oferta = 0;
+
+            aulasDaClasse.forEach(aula => {
+                visitantes += Number(aula.visitantes || 0);
+                oferta += Number(aula.oferta || 0);
+                
+                aula.presencas.forEach(p => {
+                    if (p.status === "presente") presencas++;
+                    else ausentes++;
+                });
+            });
+
+            totalMat += matriculados;
+            totalPres += presencas;
+            totalAus += ausentes;
+            totalVis += visitantes;
+            totalOfe += oferta;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${classe.nome}</strong></td>
+                    <td>${matriculados}</td>
+                    <td>${presencas}</td>
+                    <td>${ausentes}</td>
+                    <td>${visitantes}</td>
+                    <td>${formatarMoeda(oferta)}</td>
+                </tr>
+            `;
+        });
+    }
+
+    document.getElementById("geralMatriculados").textContent = totalMat;
+    document.getElementById("geralPresentes").textContent = totalPres;
+    document.getElementById("geralAusentes").textContent = totalAus;
+    document.getElementById("geralVisitantes").textContent = totalVis;
+    document.getElementById("geralOfertas").textContent = formatarMoeda(totalOfe);
 }
 
 function obterPeriodoMeses(deslocamento = 0) {
@@ -1167,7 +1301,7 @@ function obterPeriodoMeses(deslocamento = 0) {
     };
 }
 
-function calcularMetricas() {
+function calcularMetricasMensais() {
     const atual = obterPeriodoMeses(0);
     const anterior = obterPeriodoMeses(-1);
 
@@ -1193,7 +1327,6 @@ function calcularMetricas() {
     mostrarTendencia("trendOfertas", dadosAtual.ofertas, dadosAnterior.ofertas);
 
     mostrarComparacao(dadosAtual, dadosAnterior);
-    mostrarDesempenhoClasses();
 }
 
 function calcularPeriodo(ano, mes) {
@@ -1230,12 +1363,18 @@ function calcularPeriodo(ano, mes) {
 
     const frequencia = totalPossivel > 0 ? (presencas / totalPossivel) * 100 : 0;
     const alunos = classes.reduce((total, classe) => total + classe.alunos.length, 0);
-    const professores = classes.reduce((total, classe) => total + classe.alunos.filter(aluno => aluno.ehProfessor === true).length, 0);
+    
+    let professoresCount = 0;
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            if (a.ehProfessor === true) professoresCount++;
+        });
+    });
 
     return {
         classes: classes.length,
         alunos,
-        professores,
+        professores: professoresCount,
         aulas: aulasPeriodo.length,
         presencas,
         ausentes,
@@ -1358,87 +1497,5 @@ function calcularVariacao(atual, anterior) {
     return {
         tipo: variacao > 0 ? "up" : "down",
         texto: `${variacao > 0 ? "↑" : "↓"} ${Math.abs(variacao).toFixed(1)}%`
-    };
-}
-
-function mostrarDesempenhoClasses() {
-    const container = document.getElementById("desempenhoClasses");
-    if (!container) return;
-
-    container.innerHTML = "";
-
-    if (classes.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhuma classe cadastrada.</div>`;
-        return;
-    }
-
-    classes.forEach(classe => {
-        const atual = calcularDadosClassePeriodo(classe.id, 0);
-        const anterior = calcularDadosClassePluginPeriodo(classe.id, -1);
-        const variacao = calcularVariacao(atual.frequencia, anterior.frequencia);
-
-        container.innerHTML += `
-            <div class="performance-class">
-                <div class="performance-class-name">
-                    <strong>${classe.nome}</strong>
-                    <span>${classe.dia} • ${classe.horario}</span>
-                </div>
-                <div class="performance-number">
-                    <span>Alunos</span>
-                    <strong>${classe.alunos.length}</strong>
-                </div>
-                <div class="performance-number">
-                    <span>Aulas</span>
-                    <strong>${atual.aulas}</strong>
-                </div>
-                <div class="performance-number">
-                    <span>Presenças</span>
-                    <strong>${atual.presencas}</strong>
-                </div>
-                <div class="performance-number">
-                    <span>Frequência</span>
-                    <strong>${atual.frequencia.toFixed(1)}%</strong>
-                </div>
-                <div class="performance-status ${variacao.tipo === 'up' ? 'performance-up' : variacao.tipo === 'down' ? 'performance-down' : 'performance-neutral'}">
-                    ${variacao.texto}
-                </div>
-            </div>
-        `;
-    });
-}
-
-function calcularDadosClassePeriodo(classeId, deslocamento) {
-    const periodo = obterPeriodoMeses(deslocamento);
-
-    const aulasClasse = aulas.filter(aula => {
-        if (String(aula.classeId) !== String(classeId)) return false;
-        if (!aula.data) return false;
-
-        const partes = aula.data.split("-");
-        return Number(partes[0]) === periodo.ano && (Number(partes[1]) - 1) === periodo.mes;
-    });
-
-    let presencas = 0;
-    let ausentes = 0;
-
-    aulasClasse.forEach(aula => {
-        aula.presencas.forEach(registro => {
-            if (registro.status === "presente") {
-                presencas++;
-            } else {
-                ausentes++;
-            }
-        });
-    });
-
-    const classe = obterClasse(classeId);
-    const totalPossivel = classe ? classe.alunos.length * aulasClasse.length : 0;
-    const frequencia = totalPossivel > 0 ? (presencas / totalPossivel) * 100 : 0;
-
-    return {
-        aulas: aulasClasse.length,
-        presencas,
-        ausentes,
-        frequencia
     };
 }
