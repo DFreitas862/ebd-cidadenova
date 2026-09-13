@@ -38,7 +38,7 @@
 
             <button class="menu-item" onclick="abrirDashboardMetricas()">
                 <span>▥</span>
-                Métricas
+                Métricas e Relatórios
             </button>
 
             <button class="menu-item" onclick="abrirModalClasse()">
@@ -80,7 +80,7 @@
 
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="abrirDashboardMetricas()">
-                        📊 Métricas
+                        📊 Métricas & Relatórios
                     </button>
 
                     <button class="btn btn-primary" onclick="abrirModalAluno()">
@@ -177,7 +177,7 @@
         </section>
 
         <!-- =================================================
-             DASHBOARD DE MÉTRICAS
+             DASHBOARD DE MÉTRICAS E RELATÓRIOS
              ================================================= -->
 
         <section id="dashboardMetricas" class="hidden">
@@ -185,8 +185,8 @@
             <div class="page-header">
                 <div>
                     <span class="eyebrow">DESEMPENHO</span>
-                    <h1>Métricas da EBD</h1>
-                    <p>Compare o desempenho deste mês com o mês anterior.</p>
+                    <h1>Métricas e Relatórios da EBD</h1>
+                    <p>Acompanhe relatórios detalhados por período e desempenho.</p>
                 </div>
 
                 <div class="header-actions">
@@ -196,7 +196,70 @@
                 </div>
             </div>
 
-            <!-- CARDS -->
+            <!-- FILTRO DE PERÍODO DO RELATÓRIO -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Filtrar Relatório</h2>
+                </div>
+                <div class="report-filters">
+                    <div class="form-group">
+                        <label>Período</label>
+                        <select id="filtroPeriodo" onchange="mudarFiltroPeriodo()">
+                            <option value="dia">Dia Específico</option>
+                            <option value="semana">Esta Semana</option>
+                            <option value="mes" selected>Este Mês</option>
+                            <option value="trimestre">Este Trimestre</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="grupoDataEspecifica">
+                        <label>Data de Referência</label>
+                        <input type="date" id="dataRelatorio" onchange="calcularMetricas()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- RELATÓRIO EM LISTA POR CLASSE -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="eyebrow">RELATÓRIO</span>
+                        <h2>Desempenho por Classe no Período</h2>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Classe</th>
+                                <th>Matriculados</th>
+                                <th>Presentes</th>
+                                <th>Ausentes</th>
+                                <th>Visitantes</th>
+                                <th>Oferta</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaRelatorioClasses">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-total-row">
+                                <td><strong>TOTAL GERAL</strong></td>
+                                <td id="geralMatriculados">0</td>
+                                <td id="geralPresentes">0</td>
+                                <td id="geralAusentes">0</td>
+                                <td id="geralVisitantes">0</td>
+                                <td id="geralOfertas">R$ 0,00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CARDS DE MÉTRICAS MÊS ANTERIOR -->
+            <div class="panel-header" style="margin-bottom: 16px;">
+                <h2>Comparativo com o Mês Anterior</h2>
+            </div>
             <div class="stats-grid metricas-grid">
                 <div class="stat-card">
                     <div class="stat-icon">▦</div>
@@ -271,7 +334,7 @@
                 </div>
             </div>
 
-            <!-- ANÁLISE -->
+            <!-- ANÁLISE GERAL -->
             <div class="metric-comparison">
                 <div class="metric-comparison-header">
                     <div>
@@ -284,19 +347,6 @@
                 </div>
 
                 <div id="metricasComparacao"></div>
-            </div>
-
-            <!-- CLASSES -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div>
-                        <span class="eyebrow">DESEMPENHO</span>
-                        <h2>Desempenho por classe</h2>
-                        <p>Veja quais classes estão crescendo ou precisam de atenção.</p>
-                    </div>
-                </div>
-
-                <div id="desempenhoClasses"></div>
             </div>
 
         </section>
@@ -328,6 +378,10 @@
 
                     <button class="btn btn-secondary" onclick="abrirNovaAula()">
                         + Nova Aula
+                    </button>
+
+                    <button class="btn btn-danger" onclick="excluirClasseAtual()" title="Excluir esta classe">
+                        🗑️ Excluir Classe
                     </button>
                 </div>
             </div>
@@ -506,7 +560,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label>Professor</label>
+                            <label>Professor (Geral da EBD)</label>
                             <select id="professorAula">
                                 <option value="">Selecione</option>
                             </select>
@@ -669,7 +723,7 @@
 
             <label class="checkbox-field">
                 <input type="checkbox" id="ehProfessor">
-                <span>Este aluno também é professor</span>
+                <span>Este aluno também é professor (Disponível para dar aula em qualquer classe)</span>
             </label>
 
             <div class="form-actions">
