@@ -1,35 +1,28 @@
 /* =========================================================
-   EBD MANAGER - SISTEMA DE GESTÃO DA ESCOLA BÍBLICA (SUPABASE)
+   EBD MANAGER - SUPABASE (COM REVISTAS E ALUNOS ATIVOS/INATIVOS)
    ========================================================= */
 
 let supabaseClient = null;
 let classes = [];
 let aulas = [];
+let revistas = [];
 
 let classeAtual = null;
 let aulaEditando = null;
 let alunoEditando = null;
 
-/* =========================================================
-   INICIALIZAÇÃO E CARREGAMENTO DE DADOS DO SUPABASE
-   ========================================================= */
-
 document.addEventListener("DOMContentLoaded", () => {
     const data = document.getElementById("dataDashboard");
-    if (data) {
-        data.value = obterHoje();
-    }
+    if (data) data.value = obterHoje();
 
     const dataRel = document.getElementById("dataRelatorio");
-    if (dataRel) {
-        dataRel.value = obterHoje();
-    }
+    if (dataRel) dataRel.value = obterHoje();
 
     if (window.supabase && typeof SUPABASE_URL !== 'undefined') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         carregarDadosDoBanco();
     } else {
-        console.error("Supabase SDK ou config.js não foram carregados corretamente.");
+        console.error("Supabase SDK ou config.js não carregados.");
     }
 });
 
@@ -37,26 +30,25 @@ async function carregarDadosDoBanco() {
     if (!supabaseClient) return;
 
     try {
-        const { data: dadosClasses, error: erroClasses } = await supabaseClient
+        const { data: dadosClasses, error: errC } = await supabaseClient
             .from('classes')
             .select('*, alunos(*)');
-
-        if (erroClasses) throw erroClasses;
+        if (errC) throw errC;
 
         classes = (dadosClasses || []).map(c => ({
             ...c,
             alunos: (c.alunos || []).map(a => ({
                 ...a,
                 ehProfessor: a.eh_professor,
-                dataNascimento: a.data_nascimento
+                dataNascimento: a.data_nascimento,
+                ativo: a.ativo !== false // Padrão true se null
             }))
         }));
 
-        const { data: dadosAulas, error: erroAulas } = await supabaseClient
+        const { data: dadosAulas, error: errA } = await supabaseClient
             .from('aulas')
             .select('*, presencas(*), alunos!aulas_professor_id_fkey(nome)');
-
-        if (erroAulas) throw erroAulas;
+        if (errA) throw errA;
 
         aulas = (dadosAulas || []).map(a => ({
             id: a.id,
@@ -73,18 +65,18 @@ async function carregarDadosDoBanco() {
             }))
         }));
 
+        const { data: dadosRevistas, error: errR } = await supabaseClient
+            .from('revistas_alunos')
+            .select('*');
+        if (errR) throw errR;
+        revistas = dadosRevistas || [];
+
         atualizarDashboard();
-        if (classeAtual) {
-            mostrarDadosClasse();
-        }
+        if (classeAtual) mostrarDadosClasse();
     } catch (error) {
-        console.error("Erro ao carregar dados do Supabase:", error);
+        console.error("Erro ao carregar dados:", error);
     }
 }
-
-/* =========================================================
-   UTILITÁRIOS
-   ========================================================= */
 
 function gerarId() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
@@ -99,10 +91,7 @@ function obterHoje() {
 }
 
 function formatarMoeda(valor) {
-    return Number(valor || 0).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL"
-    });
+    return Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function formatarData(data) {
@@ -113,38 +102,21 @@ function formatarData(data) {
 }
 
 function obterClasse(id) {
-    return classes.find(classe => String(classe.id) === String(id));
+    return classes.find(c => String(c.id) === String(id));
 }
 
 function esconderTodasTelas() {
-    const telas = [
-        "dashboard",
-        "dashboardMetricas",
-        "telaClasse",
-        "telaAula",
-        "telaHistorico"
-    ];
-
-    telas.forEach(id => {
-        const elemento = document.getElementById(id);
-        if (elemento) {
-            elemento.classList.add("hidden");
-        }
+    ["dashboard", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"].forEach(id => {
+        document.getElementById(id)?.classList.add("hidden");
     });
 }
-
-/* =========================================================
-   DASHBOARD
-   ========================================================= */
 
 function voltarDashboard() {
     esconderTodasTelas();
     document.getElementById("dashboard").classList.remove("hidden");
-
     classeAtual = null;
     aulaEditando = null;
     alunoEditando = null;
-
     atualizarDashboard();
 }
 
@@ -154,181 +126,92 @@ function atualizarDashboard() {
     mostrarClasses();
 }
 
-/* =========================================================
-   ESTATÍSTICAS GERAIS
-   ========================================================= */
-
 function mostrarEstatisticasDashboard() {
-    let totalAlunos = 0;
-
-    classes.forEach(classe => {
-        totalAlunos += classe.alunos.length;
+    let totalAlunosAtivos = 0;
+    classes.forEach(c => {
+        totalAlunosAtivos += c.alunos.filter(a => a.ativo).length;
     });
 
-    const dataSelecionada = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(aula => aula.data === dataSelecionada);
+    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
+    const aulasDoDia = aulas.filter(a => a.data === dataSel);
 
-    let presencas = 0;
-    let ausentes = 0;
-    let visitantes = 0;
-    let ofertas = 0;
-
-    aulasDoDia.forEach(aula => {
-        aula.presencas.forEach(registro => {
-            if (registro.status === "presente") {
-                presencas++;
-            } else {
-                ausentes++;
-            }
+    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
+    aulasDoDia.forEach(a => {
+        a.presencas.forEach(p => {
+            if (p.status === "presente") presencas++;
+            else ausentes++;
         });
-
-        visitantes += Number(aula.visitantes || 0);
-        ofertas += Number(aula.oferta || 0);
+        visitantes += Number(a.visitantes || 0);
+        ofertas += Number(a.oferta || 0);
     });
 
     document.getElementById("totalClasses").textContent = classes.length;
-    document.getElementById("totalAlunos").textContent = totalAlunos;
+    document.getElementById("totalAlunos").textContent = totalAlunosAtivos;
     document.getElementById("totalPresencas").textContent = presencas;
     document.getElementById("totalAusentes").textContent = ausentes;
     document.getElementById("totalVisitantes").textContent = visitantes;
     document.getElementById("totalOfertas").textContent = formatarMoeda(ofertas);
 }
 
-/* =========================================================
-   RESUMO DO DIA
-   ========================================================= */
-
 function mostrarResumoDoDia() {
     const container = document.getElementById("resumoDoDia");
     if (!container) return;
-
-    const dataSelecionada = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(aula => aula.data === dataSelecionada);
+    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
+    const aulasDoDia = aulas.filter(a => a.data === dataSel);
 
     if (aulasDoDia.length === 0) {
-        container.innerHTML = `
-            <div class="daily-summary-card">
-                <span>Aulas</span>
-                <strong>0</strong>
-            </div>
-            <div class="daily-summary-card">
-                <span>Presenças</span>
-                <strong>0</strong>
-            </div>
-            <div class="daily-summary-card">
-                <span>Visitantes</span>
-                <strong>0</strong>
-            </div>
-            <div class="daily-summary-card">
-                <span>Ofertas</span>
-                <strong>R$ 0,00</strong>
-            </div>
-        `;
+        container.innerHTML = `<div class="daily-summary-card"><span>Aulas</span><strong>0</strong></div><div class="daily-summary-card"><span>Presenças</span><strong>0</strong></div><div class="daily-summary-card"><span>Visitantes</span><strong>0</strong></div><div class="daily-summary-card"><span>Ofertas</span><strong>R$ 0,00</strong></div>`;
         return;
     }
 
-    let presencas = 0;
-    let visitantes = 0;
-    let ofertas = 0;
-
-    aulasDoDia.forEach(aula => {
-        aula.presencas.forEach(registro => {
-            if (registro.status === "presente") {
-                presencas++;
-            }
-        });
-
-        visitantes += Number(aula.visitantes || 0);
-        ofertas += Number(aula.oferta || 0);
+    let presencas = 0, visitantes = 0, ofertas = 0;
+    aulasDoDia.forEach(a => {
+        a.presencas.forEach(p => { if (p.status === "presente") presencas++; });
+        visitantes += Number(a.visitantes || 0);
+        ofertas += Number(a.oferta || 0);
     });
 
     container.innerHTML = `
-        <div class="daily-summary-card">
-            <span>Aulas</span>
-            <strong>${aulasDoDia.length}</strong>
-        </div>
-        <div class="daily-summary-card">
-            <span>Presenças</span>
-            <strong>${presencas}</strong>
-        </div>
-        <div class="daily-summary-card">
-            <span>Visitantes</span>
-            <strong>${visitantes}</strong>
-        </div>
-        <div class="daily-summary-card">
-            <span>Ofertas</span>
-            <strong>${formatarMoeda(ofertas)}</strong>
-        </div>
+        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasDoDia.length}</strong></div>
+        <div class="daily-summary-card"><span>Presenças</span><strong>${presencas}</strong></div>
+        <div class="daily-summary-card"><span>Visitantes</span><strong>${visitantes}</strong></div>
+        <div class="daily-summary-card"><span>Ofertas</span><strong>${formatarMoeda(ofertas)}</strong></div>
     `;
 }
-
-/* =========================================================
-   MOSTRAR CLASSES
-   ========================================================= */
 
 function mostrarClasses() {
     const container = document.getElementById("listaClasses");
     if (!container) return;
-
     container.innerHTML = "";
 
     if (classes.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <strong>Nenhuma classe cadastrada.</strong><br><br>
-                Cadastre sua primeira classe para começar.
-            </div>
-        `;
+        container.innerHTML = `<div class="empty-state">Nenhuma classe cadastrada.</div>`;
         return;
     }
 
-    classes.forEach(classe => {
-        const aulasClasse = aulas.filter(aula => String(aula.classeId) === String(classe.id));
+    classes.forEach(c => {
+        const aulasC = aulas.filter(a => String(a.classeId) === String(c.id));
+        const ativos = c.alunos.filter(a => a.ativo).length;
         let presencas = 0;
-
-        aulasClasse.forEach(aula => {
-            aula.presencas.forEach(registro => {
-                if (registro.status === "presente") {
-                    presencas++;
-                }
-            });
-        });
+        aulasC.forEach(a => a.presencas.forEach(p => { if (p.status === "presente") presencas++; }));
 
         container.innerHTML += `
-            <div class="class-card" onclick="abrirClasse('${classe.id}')">
+            <div class="class-card" onclick="abrirClasse('${c.id}')">
                 <div class="class-card-header">
                     <div>
-                        <h3>${classe.nome}</h3>
-                        <div class="class-card-info">
-                            ${classe.dia} • ${classe.horario}
-                        </div>
+                        <h3>${c.nome}</h3>
+                        <div class="class-card-info">${c.dia} • ${c.horario}</div>
                     </div>
                 </div>
-
                 <div class="class-card-stats">
-                    <div class="class-mini-stat">
-                        <span>Alunos</span>
-                        <strong>${classe.alunos.length}</strong>
-                    </div>
-
-                    <div class="class-mini-stat">
-                        <span>Aulas</span>
-                        <strong>${aulasClasse.length}</strong>
-                    </div>
-
-                    <div class="class-mini-stat">
-                        <span>Presenças</span>
-                        <strong>${presencas}</strong>
-                    </div>
+                    <div class="class-mini-stat"><span>Ativos</span><strong>${ativos}</strong></div>
+                    <div class="class-mini-stat"><span>Aulas</span><strong>${aulasC.length}</strong></div>
+                    <div class="class-mini-stat"><span>Presenças</span><strong>${presencas}</strong></div>
                 </div>
             </div>
         `;
     });
 }
-
-/* =========================================================
-   MODAL CLASSE & EXCLUIR CLASSE
-   ========================================================= */
 
 function abrirModalClasse() {
     document.getElementById("nomeClasse").value = "";
@@ -337,191 +220,222 @@ function abrirModalClasse() {
     document.getElementById("modalClasse").classList.remove("hidden");
 }
 
-function fecharModalClasse() {
-    document.getElementById("modalClasse").classList.add("hidden");
-}
+function fecharModalClasse() { document.getElementById("modalClasse").classList.add("hidden"); }
 
 async function salvarClasse() {
     if (!supabaseClient) return;
-
     const nome = document.getElementById("nomeClasse").value.trim();
     const dia = document.getElementById("diaClasse").value;
     const horario = document.getElementById("horarioClasse").value;
 
-    if (!nome) {
-        alert("Digite o nome da classe.");
-        return;
-    }
+    if (!nome || !horario) { alert("Preencha todos os campos."); return; }
 
-    if (!horario) {
-        alert("Informe o horário.");
-        return;
-    }
-
-    const novaClasse = {
-        id: gerarId(),
-        nome,
-        dia,
-        horario
-    };
-
-    const { error } = await supabaseClient.from('classes').insert([novaClasse]);
-    if (error) {
-        console.error("Erro ao salvar classe:", error);
-        alert("Erro ao salvar classe no banco.");
-        return;
-    }
+    const nova = { id: gerarId(), nome, dia, horario };
+    const { error } = await supabaseClient.from('classes').insert([nova]);
+    if (error) { alert("Erro ao salvar classe."); return; }
 
     fecharModalClasse();
     await carregarDadosDoBanco();
-    alert("Classe cadastrada com sucesso!");
 }
 
 async function excluirClasseAtual() {
     if (!supabaseClient || !classeAtual) return;
-
-    const confirmacao = confirm(
-        `Deseja realmente excluir a classe "${classeAtual.nome}"?\n\n` +
-        `ATENÇÃO: Todos os alunos, aulas e registros de presença vinculados a esta classe também serão excluídos permanentemente!`
-    );
-
-    if (!confirmacao) return;
+    if (!confirm(`Deseja excluir a classe "${classeAtual.nome}" e todos os seus dados?`)) return;
 
     const { error } = await supabaseClient.from('classes').delete().eq('id', classeAtual.id);
-    if (error) {
-        console.error("Erro ao excluir classe:", error);
-        alert("Erro ao excluir classe.");
-        return;
-    }
+    if (error) { alert("Erro ao excluir classe."); return; }
 
-    alert("Classe excluída com sucesso!");
     voltarDashboard();
     await carregarDadosDoBanco();
 }
 
-/* =========================================================
-   ABRIR CLASSE
-   ========================================================= */
-
 function abrirClasse(id) {
-    const classe = obterClasse(id);
-
-    if (!classe) {
-        alert("Classe não encontrada.");
-        return;
-    }
-
-    classeAtual = classe;
-
+    const c = obterClasse(id);
+    if (!c) return;
+    classeAtual = c;
     esconderTodasTelas();
     document.getElementById("telaClasse").classList.remove("hidden");
-
     mostrarDadosClasse();
 }
 
 function mostrarDadosClasse() {
     if (!classeAtual) return;
-
     classeAtual = obterClasse(classeAtual.id);
-
-    if (!classeAtual) {
-        alert("Classe não encontrada.");
-        voltarDashboard();
-        return;
-    }
-
-    const aulasClasse = aulas.filter(aula => String(aula.classeId) === String(classeAtual.id));
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
 
     document.getElementById("tituloClasse").textContent = classeAtual.nome;
     document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
     document.getElementById("classeNomeCard").textContent = classeAtual.nome;
 
-    let presencas = 0;
-    let ausentes = 0;
-    let visitantes = 0;
-    let ofertas = 0;
-
-    aulasClasse.forEach(aula => {
-        aula.presencas.forEach(registro => {
-            if (registro.status === "presente") {
-                presencas++;
-            } else {
-                ausentes++;
-            }
-        });
-
-        visitantes += Number(aula.visitantes || 0);
-        ofertas += Number(aula.oferta || 0);
+    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
+    aulasC.forEach(a => {
+        a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
+        visitantes += Number(a.visitantes || 0);
+        ofertas += Number(a.oferta || 0);
     });
 
-    const totalPossivel = classeAtual.alunos.length * aulasClasse.length;
-    const frequencia = totalPossivel > 0 ? (presencas / totalPossivel) * 100 : 0;
+    const totalPossivel = alunosAtivos.length * aulasC.length;
+    const freq = totalPossivel > 0 ? (presencas / totalPossivel) * 100 : 0;
 
-    document.getElementById("classeTotalAlunos").textContent = classeAtual.alunos.length;
-    document.getElementById("classeTotalAulas").textContent = aulasClasse.length;
+    document.getElementById("classeTotalAlunos").textContent = alunosAtivos.length;
+    document.getElementById("classeTotalAulas").textContent = aulasC.length;
     document.getElementById("classeTotalPresencas").textContent = presencas;
     document.getElementById("classeTotalAusentes").textContent = ausentes;
     document.getElementById("classeTotalVisitantes").textContent = visitantes;
     document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
-    document.getElementById("classeFrequencia").textContent = `${frequencia.toFixed(1)}%`;
+    document.getElementById("classeFrequencia").textContent = `${freq.toFixed(1)}%`;
 
     document.getElementById("resumoNomeClasse").textContent = classeAtual.nome;
     document.getElementById("resumoInfoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
-    document.getElementById("resumoAulas").textContent = aulasClasse.length;
+    document.getElementById("resumoAulas").textContent = aulasC.length;
     document.getElementById("resumoPresencas").textContent = presencas;
     document.getElementById("resumoVisitantes").textContent = visitantes;
     document.getElementById("resumoOfertas").textContent = formatarMoeda(ofertas);
 
+    mostrarControleRevistas();
     mostrarRanking();
     mostrarAlunosClasse();
     mostrarAulasClasse();
 }
 
 /* =========================================================
-   RANKING
+   CONTROLE DE REVISTAS POR TEMA
    ========================================================= */
+async function adicionarTemaRevista() {
+    if (!supabaseClient || !classeAtual) return;
+    const input = document.getElementById("inputTemaRevista");
+    const tema = input.value.trim();
+    if (!tema) { alert("Digite o tema da revista."); return; }
 
-function mostrarRanking() {
-    const container = document.getElementById("rankingAlunos");
-    if (!container) return;
+    // Insere registros na tabela para cada aluno ativo da classe
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
+    const novasRevistas = alunosAtivos.map(aluno => ({
+        id: gerarId(),
+        aluno_id: aluno.id,
+        tema_revista: tema,
+        revista_entregue: false,
+        status_pagamento: 'devendo'
+    }));
 
+    if (novasRevistas.length > 0) {
+        const { error } = await supabaseClient.from('revistas_alunos').insert(novasRevistas);
+        if (error) { alert("Erro ao criar controle de revistas."); return; }
+    }
+
+    input.value = "";
+    await carregarDadosDoBanco();
+}
+
+function mostrarControleRevistas() {
+    const container = document.getElementById("listaControleRevistas");
+    if (!container || !classeAtual) return;
     container.innerHTML = "";
 
-    if (!classeAtual || classeAtual.alunos.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum aluno cadastrado.</div>`;
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
+    const alunoIdsAtivos = alunosAtivos.map(a => a.id);
+
+    // Agrupa revistas por tema que pertencem aos alunos desta classe
+    const revistasDaClasse = revistas.filter(r => alunoIdsAtivos.includes(r.aluno_id));
+    const temasUnicos = [...new Set(revistasDaClasse.map(r => r.tema_revista))];
+
+    if (temasUnicos.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum tema de revista cadastrado para esta classe.</div>`;
         return;
     }
 
-    const aulasClasse = aulas.filter(aula => String(aula.classeId) === String(classeAtual.id));
+    temasUnicos.forEach(tema => {
+        let blocoHtml = `
+            <div class="revista-card-bloco">
+                <div class="revista-card-topo">
+                    <strong>📖 Revista: ${tema}</strong>
+                    <button class="delete-button" onclick="excluirTemaRevista('${tema}')" title="Excluir tema">×</button>
+                </div>
+        `;
 
-    const ranking = classeAtual.alunos.map(aluno => {
-        let presentes = 0;
-        let ausentes = 0;
+        alunosAtivos.forEach(aluno => {
+            const rev = revistas.find(r => r.aluno_id === aluno.id && r.tema_revista === tema);
+            const entregue = rev ? rev.revista_entregue : false;
+            const pagamento = rev ? rev.status_pagamento : 'devendo';
 
-        aulasClasse.forEach(aula => {
-            const registro = aula.presencas.find(item => String(item.alunoId) === String(aluno.id));
-            if (!registro) return;
-
-            if (registro.status === "presente") {
-                presentes++;
-            } else {
-                ausentes++;
-            }
+            blocoHtml += `
+                <div class="revista-aluno-row">
+                    <span>${aluno.nome}</span>
+                    <div class="revista-botoes-grupo">
+                        <button class="btn-status ${entregue ? 'entregue' : ''}" onclick="alternarRevistaEntregue('${aluno.id}', '${tema}', ${!entregue})">
+                            ${entregue ? '✓ Entregue' : '✗ Não Entregue'}
+                        </button>
+                        <button class="btn-status ${pagamento === 'pago' ? 'pago' : 'devendo'}" onclick="alternarStatusPagamento('${aluno.id}', '${tema}', '${pagamento === 'pago' ? 'devendo' : 'pago'}')">
+                            ${pagamento === 'pago' ? '🟢 Pago' : '🔴 Devendo'}
+                        </button>
+                    </div>
+                </div>
+            `;
         });
 
-        const total = presentes + ausentes;
-        const frequencia = total > 0 ? (presentes / total) * 100 : 0;
+        blocoHtml += `</div>`;
+        container.innerHTML += blocoHtml;
+    });
+}
 
-        return {
-            aluno,
-            presentes,
-            ausentes,
-            frequencia
-        };
+async function alternarRevistaEntregue(alunoId, tema, novoStatus) {
+    let rev = revistas.find(r => r.aluno_id === alunoId && r.tema_revista === tema);
+    if (rev) {
+        await supabaseClient.from('revistas_alunos').update({ revista_entregue: novoStatus }).eq('id', rev.id);
+    } else {
+        await supabaseClient.from('revistas_alunos').insert([{ id: gerarId(), aluno_id: alunoId, tema_revista: tema, revista_entregue: novoStatus, status_pagamento: 'devendo' }]);
+    }
+    await carregarDadosDoBanco();
+}
+
+async function alternarStatusPagamento(alunoId, tema, novoStatus) {
+    let rev = revistas.find(r => r.aluno_id === alunoId && r.tema_revista === tema);
+    if (rev) {
+        await supabaseClient.from('revistas_alunos').update({ status_pagamento: novoStatus }).eq('id', rev.id);
+    } else {
+        await supabaseClient.from('revistas_alunos').insert([{ id: gerarId(), aluno_id: alunoId, tema_revista: tema, revista_entregue: false, status_pagamento: novoStatus }]);
+    }
+    await carregarDadosDoBanco();
+}
+
+async function excluirTemaRevista(tema) {
+    if (!confirm(`Deseja apagar o tema "${tema}" de todos os registros da classe?`)) return;
+    const alunoIdsAtivos = classeAtual.alunos.map(a => a.id);
+    
+    // Deleta do Supabase
+    for (let id of alunoIdsAtivos) {
+        await supabaseClient.from('revistas_alunos').delete().eq('aluno_id', id).eq('tema_revista', tema);
+    }
+    await carregarDadosDoBanco();
+}
+
+/* =========================================================
+   RANKING & ALUNOS
+   ========================================================= */
+function mostrarRanking() {
+    const container = document.getElementById("rankingAlunos");
+    if (!container || !classeAtual) return;
+    container.innerHTML = "";
+
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
+    if (alunosAtivos.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum aluno ativo.</div>`;
+        return;
+    }
+
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
+    const ranking = alunosAtivos.map(aluno => {
+        let presentes = 0, ausentes = 0;
+        aulasC.forEach(a => {
+            const reg = a.presencas.find(p => String(p.alunoId) === String(aluno.id));
+            if (reg) { if (reg.status === "presente") presentes++; else ausentes++; }
+        });
+        const total = presentes + ausentes;
+        const freq = total > 0 ? (presentes / total) * 100 : 0;
+        return { aluno, presentes, freq };
     });
 
-    ranking.sort((a, b) => b.frequencia - a.frequencia);
-
+    ranking.sort((a, b) => b.freq - a.freq);
     ranking.forEach((item, index) => {
         container.innerHTML += `
             <div class="ranking-item">
@@ -530,45 +444,28 @@ function mostrarRanking() {
                     <strong>${item.aluno.nome}</strong>
                     <span>${item.aluno.ehProfessor ? "Professor" : "Aluno"}</span>
                 </div>
-                <div class="ranking-number">
-                    <span>Presenças</span>
-                    <strong>${item.presentes}</strong>
-                </div>
+                <div class="ranking-number"><span>Presenças</span><strong>${item.presentes}</strong></div>
                 <div>
-                    <div class="frequency-bar">
-                        <div style="width: ${item.frequencia}%"></div>
-                    </div>
-                    <div class="ranking-number" style="margin-top:5px">
-                        <strong>${item.frequencia.toFixed(1)}%</strong>
-                    </div>
+                    <div class="frequency-bar"><div style="width: ${item.freq}%"></div></div>
+                    <div class="ranking-number" style="margin-top:5px"><strong>${item.freq.toFixed(1)}%</strong></div>
                 </div>
             </div>
         `;
     });
 }
 
-/* =========================================================
-   ALUNOS DA CLASSE
-   ========================================================= */
-
 function mostrarAlunosClasse() {
     const container = document.getElementById("alunosClasse");
-    if (!container) return;
-
+    if (!container || !classeAtual) return;
     container.innerHTML = "";
 
-    if (!classeAtual || classeAtual.alunos.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum aluno cadastrado nesta classe.</div>`;
+    if (classeAtual.alunos.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum aluno cadastrado.</div>`;
         return;
     }
 
     classeAtual.alunos.forEach(aluno => {
-        const iniciais = aluno.nome
-            .split(" ")
-            .slice(0, 2)
-            .map(nome => nome.charAt(0).toUpperCase())
-            .join("");
-
+        const iniciais = aluno.nome.split(" ").slice(0, 2).map(n => n.charAt(0).toUpperCase()).join("");
         container.innerHTML += `
             <div class="student-item">
                 <div class="student-info">
@@ -578,6 +475,7 @@ function mostrarAlunosClasse() {
                         <span>
                             ${aluno.ehProfessor ? "Professor" : "Aluno"}
                             ${aluno.telefone ? " • " + aluno.telefone : ""}
+                            ${!aluno.ativo ? ' • <span class="badge-inativo">Inativo</span>' : ''}
                         </span>
                     </div>
                 </div>
@@ -589,244 +487,124 @@ function mostrarAlunosClasse() {
     });
 }
 
-/* =========================================================
-   AULAS DA CLASSE
-   ========================================================= */
-
 function mostrarAulasClasse() {
     const container = document.getElementById("aulasClasse");
-    if (!container) return;
-
+    if (!container || !classeAtual) return;
     container.innerHTML = "";
 
-    if (!classeAtual) return;
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id)).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 8);
+    if (aulasC.length === 0) { container.innerHTML = `<div class="empty-state">Nenhuma aula registrada.</div>`; return; }
 
-    const aulasClasse = aulas
-        .filter(aula => String(aula.classeId) === String(classeAtual.id))
-        .sort((a, b) => b.data.localeCompare(a.data))
-        .slice(0, 8);
-
-    if (aulasClasse.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhuma aula registrada.</div>`;
-        return;
-    }
-
-    aulasClasse.forEach(aula => adicionarCardAula(aula, container));
-}
-
-function adicionarCardAula(aula, container) {
-    let presencas = 0;
-
-    aula.presencas.forEach(registro => {
-        if (registro.status === "presente") presencas++;
+    aulasC.forEach(aula => {
+        let presencas = 0;
+        aula.presencas.forEach(p => { if (p.status === "presente") presencas++; });
+        container.innerHTML += `
+            <div class="lesson-card">
+                <div class="lesson-header">
+                    <div>
+                        <div class="lesson-date">${formatarData(aula.data)}</div>
+                        <h3>${aula.tema || "Sem tema"}</h3>
+                        <div class="lesson-professor">Professor: ${aula.professorNome || "-"}</div>
+                    </div>
+                </div>
+                <div class="lesson-stats">
+                    <div class="lesson-stat"><span>Presenças</span><strong>${presencas}</strong></div>
+                    <div class="lesson-stat"><span>Visitantes</span><strong>${aula.visitantes || 0}</strong></div>
+                    <div class="lesson-stat"><span>Oferta</span><strong>${formatarMoeda(aula.oferta)}</strong></div>
+                </div>
+                <div class="lesson-actions">
+                    <button class="icon-button" title="Editar" onclick="editarAula('${aula.id}')">✎</button>
+                    <button class="delete-button" title="Excluir" onclick="excluirAula('${aula.id}')">×</button>
+                </div>
+            </div>
+        `;
     });
-
-    container.innerHTML += `
-        <div class="lesson-card">
-            <div class="lesson-header">
-                <div>
-                    <div class="lesson-date">${formatarData(aula.data)}</div>
-                    <h3>${aula.tema || "Sem tema"}</h3>
-                    <div class="lesson-professor">Professor: ${aula.professorNome || "-"}</div>
-                </div>
-            </div>
-
-            <div class="lesson-stats">
-                <div class="lesson-stat">
-                    <span>Presenças</span>
-                    <strong>${presencas}</strong>
-                </div>
-                <div class="lesson-stat">
-                    <span>Visitantes</span>
-                    <strong>${aula.visitantes || 0}</strong>
-                </div>
-                <div class="lesson-stat">
-                    <span>Oferta</span>
-                    <strong>${formatarMoeda(aula.oferta)}</strong>
-                </div>
-            </div>
-
-            <div class="lesson-actions">
-                <button class="icon-button" title="Editar aula" onclick="editarAula('${aula.id}')">✎</button>
-                <button class="delete-button" title="Excluir aula" onclick="event.stopPropagation(); excluirAula('${aula.id}')">×</button>
-            </div>
-        </div>
-    `;
 }
-
-/* =========================================================
-   MODAL ALUNO
-   ========================================================= */
 
 function abrirModalAluno() {
     alunoEditando = null;
-
     document.getElementById("tituloModalAluno").textContent = "Novo Aluno";
     document.getElementById("nomeAluno").value = "";
     document.getElementById("telefoneAluno").value = "";
     document.getElementById("dataNascimentoAluno").value = "";
     document.getElementById("ehProfessor").checked = false;
+    document.getElementById("alunoAtivo").checked = true;
 
-    carregarSelectClasses();
-    document.getElementById("classeAluno").value = "";
-
+    const select = document.getElementById("classeAluno");
+    select.innerHTML = `<option value="">Selecione a classe</option>`;
+    classes.forEach(c => { select.innerHTML += `<option value="${c.id}">${c.nome}</option>`; });
     document.getElementById("modalAluno").classList.remove("hidden");
 }
 
 function abrirModalAlunoClasseAtual() {
     abrirModalAluno();
-    if (classeAtual) {
-        document.getElementById("classeAluno").value = classeAtual.id;
-    }
+    if (classeAtual) document.getElementById("classeAluno").value = classeAtual.id;
 }
 
-function fecharModalAluno() {
-    document.getElementById("modalAluno").classList.add("hidden");
-    alunoEditando = null;
-}
-
-function carregarSelectClasses() {
-    const select = document.getElementById("classeAluno");
-    select.innerHTML = `<option value="">Selecione a classe</option>`;
-
-    classes.forEach(classe => {
-        select.innerHTML += `<option value="${classe.id}">${classe.nome}</option>`;
-    });
-}
+function fecharModalAluno() { document.getElementById("modalAluno").classList.add("hidden"); alunoEditando = null; }
 
 async function salvarAluno() {
     if (!supabaseClient) return;
-
     const nome = document.getElementById("nomeAluno").value.trim();
     const telefone = document.getElementById("telefoneAluno").value.trim();
     const dataNascimento = document.getElementById("dataNascimentoAluno").value;
     const classeId = document.getElementById("classeAluno").value;
     const ehProfessor = document.getElementById("ehProfessor").checked;
+    const ativo = document.getElementById("alunoAtivo").checked;
 
-    if (!nome) {
-        alert("Digite o nome do aluno.");
-        return;
-    }
-
-    if (!classeId) {
-        alert("Selecione uma classe.");
-        return;
-    }
+    if (!nome || !classeId) { alert("Preencha o nome e selecione a classe."); return; }
 
     if (alunoEditando) {
         const { error } = await supabaseClient.from('alunos').update({
-            nome,
-            telefone,
-            data_nascimento: dataNascimento ? dataNascimento : null,
-            classe_id: classeId,
-            eh_professor: ehProfessor
+            nome, telefone, data_nascimento: dataNascimento || null, classe_id: classeId, eh_professor: ehProfessor, ativo
         }).eq('id', alunoEditando);
-
-        if (error) {
-            console.error("Erro ao atualizar aluno:", error);
-            alert("Erro ao atualizar aluno.");
-            return;
-        }
-
-        fecharModalAluno();
-        await carregarDadosDoBanco();
-        if (classeAtual) {
-            classeAtual = obterClasse(classeAtual.id);
-            mostrarDadosClasse();
-        }
-        alert("Aluno atualizado com sucesso!");
-        return;
-    }
-
-    const novoAluno = {
-        id: gerarId(),
-        classe_id: classeId,
-        nome,
-        telefone,
-        data_nascimento: dataNascimento ? dataNascimento : null,
-        eh_professor: ehProfessor
-    };
-
-    const { error } = await supabaseClient.from('alunos').insert([novoAluno]);
-    if (error) {
-        console.error("Erro ao salvar aluno:", error);
-        alert("Erro ao salvar aluno.");
-        return;
+        if (error) { alert("Erro ao atualizar aluno."); return; }
+    } else {
+        const novo = {
+            id: gerarId(), classe_id: classeId, nome, telefone, data_nascimento: dataNascimento || null, eh_professor: ehProfessor, ativo
+        };
+        const { error } = await supabaseClient.from('alunos').insert([novo]);
+        if (error) { alert("Erro ao salvar aluno."); return; }
     }
 
     fecharModalAluno();
     await carregarDadosDoBanco();
-    atualizarDashboard();
-
-    alert("Aluno cadastrado com sucesso!");
-
-    if (classeAtual) {
-        classeAtual = obterClasse(classeAtual.id);
-        mostrarDadosClasse();
-    }
+    if (classeAtual) mostrarDadosClasse();
 }
 
 function editarAluno(id) {
-    let aluno = null;
-    let classeDoAluno = null;
-
-    classes.forEach(classe => {
-        const encontrado = classe.alunos.find(item => String(item.id) === String(id));
-        if (encontrado) {
-            aluno = encontrado;
-            classeDoAluno = classe;
-        }
+    let alunoObj = null, classeObj = null;
+    classes.forEach(c => {
+        const achou = c.alunos.find(a => String(a.id) === String(id));
+        if (achou) { alunoObj = achou; classeObj = c; }
     });
 
-    if (!aluno) {
-        alert("Aluno não encontrado.");
-        return;
-    }
-
-    alunoEditando = aluno.id;
+    if (!alunoObj) return;
+    alunoEditando = alunoObj.id;
 
     document.getElementById("tituloModalAluno").textContent = "Editar Aluno";
-    document.getElementById("nomeAluno").value = aluno.nome || "";
-    document.getElementById("telefoneAluno").value = aluno.telefone || "";
-    document.getElementById("dataNascimentoAluno").value = aluno.dataNascimento || "";
-    document.getElementById("ehProfessor").checked = aluno.ehProfessor === true;
+    document.getElementById("nomeAluno").value = alunoObj.nome;
+    document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
+    document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
+    document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
+    document.getElementById("alunoAtivo").checked = alunoObj.ativo;
 
-    carregarSelectClasses();
-    document.getElementById("classeAluno").value = classeDoAluno.id;
+    const select = document.getElementById("classeAluno");
+    select.innerHTML = `<option value="">Selecione a classe</option>`;
+    classes.forEach(c => { select.innerHTML += `<option value="${c.id}">${c.nome}</option>`; });
+    select.value = classeObj.id;
 
     document.getElementById("modalAluno").classList.remove("hidden");
 }
 
 /* =========================================================
-   NOVA AULA (COM PROFESSORES GLOBAIS DA EBD)
+   AULAS E CHAMADA
    ========================================================= */
-
 function abrirNovaAula() {
-    if (!classeAtual) {
-        alert("Selecione uma classe.");
-        return;
-    }
-
-    // Coleta TODOS os professores cadastrados em QUALQUER classe da EBD
-    let todosProfessores = [];
-    classes.forEach(c => {
-        const profsDaClasse = c.alunos.filter(a => a.ehProfessor === true);
-        todosProfessores = todosProfessores.concat(profsDaClasse);
-    });
-
-    if (todosProfessores.length === 0) {
-        alert(
-            "A EBD ainda não possui nenhum aluno marcado como professor em nenhuma classe.\n\n" +
-            "Abra o cadastro de um aluno e marque a opção \"Este aluno também é professor\"."
-        );
-        return;
-    }
-
+    if (!classeAtual) return;
     aulaEditando = null;
-
     esconderTodasTelas();
     document.getElementById("telaAula").classList.remove("hidden");
-
     document.getElementById("tituloAula").textContent = "Nova Aula";
     document.getElementById("subtituloAula").textContent = classeAtual.nome;
     document.getElementById("dataAula").value = obterHoje();
@@ -838,225 +616,112 @@ function abrirNovaAula() {
     mostrarChamada();
 }
 
-function carregarProfessoresGlobais(professorSelecionado = "") {
+function carregarProfessoresGlobais(sel = "") {
     const select = document.getElementById("professorAula");
     select.innerHTML = `<option value="">Selecione o professor</option>`;
-
-    let todosProfessores = [];
-    classes.forEach(c => {
-        const profsDaClasse = c.alunos.filter(a => a.ehProfessor === true);
-        todosProfessores = todosProfessores.concat(profsDaClasse);
-    });
-
-    todosProfessores.forEach(professor => {
-        select.innerHTML += `<option value="${professor.id}">${professor.nome}</option>`;
-    });
-
-    if (professorSelecionado) {
-        select.value = professorSelecionado;
-    }
+    let todosProfs = [];
+    classes.forEach(c => { todosProfs = todosProfs.concat(c.alunos.filter(a => a.ehProfessor && a.ativo)); });
+    todosProfs.forEach(p => { select.innerHTML += `<option value="${p.id}">${p.nome}</option>`; });
+    if (sel) select.value = sel;
 }
 
-/* =========================================================
-   CHAMADA
-   ========================================================= */
-
-function mostrarChamada(registrosExistentes = []) {
+function mostrarChamada(registros = []) {
     const container = document.getElementById("listaChamada");
     container.innerHTML = "";
-
     if (!classeAtual) return;
 
-    classeAtual.alunos.forEach(aluno => {
-        const registro = registrosExistentes.find(item => String(item.alunoId) === String(aluno.id));
-        const status = registro ? registro.status : "ausente";
+    // Faz a chamada apenas considerando alunos ativos
+    const ativos = classeAtual.alunos.filter(a => a.ativo);
+    if (ativos.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum aluno ativo nesta classe para fazer chamada.</div>`;
+        return;
+    }
 
+    ativos.forEach(aluno => {
+        const reg = registros.find(r => String(r.alunoId) === String(aluno.id));
+        const status = reg ? reg.status : "ausente";
         container.innerHTML += `
             <div class="attendance-item">
                 <div class="attendance-student">
                     <div class="student-avatar">${aluno.nome.charAt(0).toUpperCase()}</div>
                     <strong>${aluno.nome}</strong>
                 </div>
-
                 <div class="attendance-buttons">
-                    <button id="presente-${aluno.id}" class="attendance-btn ${status === 'presente' ? 'present' : ''}" onclick="marcarPresenca('${aluno.id}', 'presente')">
-                        ✓ Presente
-                    </button>
-                    <button id="ausente-${aluno.id}" class="attendance-btn ${status === 'absent' ? 'absent' : ''}" onclick="marcarPresenca('${aluno.id}', 'ausente')">
-                        × Ausente
-                    </button>
+                    <button id="presente-${aluno.id}" class="attendance-btn ${status === 'presente' ? 'present' : ''}" onclick="marcarPresenca('${aluno.id}', 'presente')">✓ Presente</button>
+                    <button id="ausente-${aluno.id}" class="attendance-btn ${status === 'ausente' ? 'absent' : ''}" onclick="marcarPresenca('${aluno.id}', 'ausente')">× Ausente</button>
                 </div>
             </div>
         `;
     });
-
     atualizarContadorPresenca();
 }
 
 function marcarPresenca(alunoId, status) {
-    const presente = document.getElementById(`presente-${alunoId}`);
-    const ausente = document.getElementById(`ausente-${alunoId}`);
+    const pres = document.getElementById(`presente-${alunoId}`);
+    const aus = document.getElementById(`ausente-${alunoId}`);
+    if (!pres || !aus) return;
 
-    if (!presente || !ausente) return;
-
-    presente.classList.remove("present");
-    ausente.classList.remove("absent");
-
-    if (status === "presente") {
-        presente.classList.add("present");
-    } else {
-        ausente.classList.add("absent");
-    }
-
+    pres.classList.remove("present");
+    aus.classList.remove("absent");
+    if (status === "presente") pres.classList.add("present");
+    else aus.classList.add("absent");
     atualizarContadorPresenca();
 }
 
 function atualizarContadorPresenca() {
     if (!classeAtual) return;
-
     let presentes = 0;
-
-    classeAtual.alunos.forEach(aluno => {
-        const botao = document.getElementById(`presente-${aluno.id}`);
-        if (botao && botao.classList.contains("present")) {
-            presentes++;
-        }
+    classeAtual.alunos.filter(a => a.ativo).forEach(a => {
+        if (document.getElementById(`presente-${a.id}`)?.classList.contains("present")) presentes++;
     });
-
-    const contador = document.getElementById("contadorPresenca");
-    if (contador) {
-        contador.textContent = `${presentes} ${presentes === 1 ? "presente" : "presentes"}`;
-    }
+    const cont = document.getElementById("contadorPresenca");
+    if (cont) cont.textContent = `${presentes} presentes`;
 }
-
-/* =========================================================
-   SALVAR AULA
-   ========================================================= */
 
 async function salvarAula() {
     if (!supabaseClient || !classeAtual) return;
-
     const data = document.getElementById("dataAula").value;
     const tema = document.getElementById("temaAula").value.trim();
     const professorId = document.getElementById("professorAula").value;
     const visitantes = Number(document.getElementById("visitantesAula").value || 0);
     const oferta = Number(document.getElementById("ofertaAula").value || 0);
 
-    if (!data) {
-        alert("Informe a data da aula.");
-        return;
-    }
+    if (!data || !tema || !professorId) { alert("Preencha data, tema e professor."); return; }
 
-    if (!tema) {
-        alert("Informe o tema da aula.");
-        return;
-    }
-
-    if (!professorId) {
-        alert("Selecione o professor.");
-        return;
-    }
-
-    const presencasColetadas = classeAtual.alunos.map(aluno => {
-        const presente = document.getElementById(`presente-${aluno.id}`)?.classList.contains("present");
-        return {
-            id: gerarId(),
-            aluno_id: aluno.id,
-            status: presente ? "presente" : "ausente"
-        };
-    });
-
-    if (aulaEditando) {
-        const { error: errAula } = await supabaseClient.from('aulas').update({
-            data,
-            tema,
-            professor_id: professorId,
-            visitantes,
-            oferta
-        }).eq('id', aulaEditando);
-
-        if (errAula) {
-            console.error("Erro ao atualizar aula:", errAula);
-            alert("Erro ao atualizar aula.");
-            return;
-        }
-
-        await supabaseClient.from('presencas').delete().eq('aula_id', aulaEditando);
-
-        const presencasParaSalvar = presencasColetadas.map(p => ({
-            id: p.id,
-            aula_id: aulaEditando,
-            aluno_id: p.aluno_id,
-            status: p.status
-        }));
-
-        await supabaseClient.from('presencas').insert(presencasParaSalvar);
-
-        aulaEditando = null;
-        await carregarDadosDoBanco();
-        voltarClasse();
-        alert("Aula atualizada com sucesso!");
-        return;
-    }
-
-    const novaAulaId = gerarId();
-    const novaAula = {
-        id: novaAulaId,
-        classe_id: classeAtual.id,
-        data,
-        tema,
-        professor_id: professorId,
-        visitantes,
-        oferta
-    };
-
-    const { error: errAula } = await supabaseClient.from('aulas').insert([novaAula]);
-    if (errAula) {
-        console.error("Erro ao salvar aula:", errAula);
-        alert("Erro ao salvar aula.");
-        return;
-    }
-
-    const presencasParaSalvar = presencasColetadas.map(p => ({
-        id: p.id,
-        aula_id: novaAulaId,
-        aluno_id: p.aluno_id,
-        status: p.status
+    const ativos = classeAtual.alunos.filter(a => a.ativo);
+    const presencas = ativos.map(a => ({
+        id: gerarId(),
+        aluno_id: a.id,
+        status: document.getElementById(`presente-${a.id}`)?.classList.contains("present") ? "presente" : "ausente"
     }));
 
-    await supabaseClient.from('presencas').insert(presencasParaSalvar);
+    if (aulaEditando) {
+        await supabaseClient.from('aulas').update({ data, tema, professor_id: professorId, visitantes, oferta }).eq('id', aulaEditando);
+        await supabaseClient.from('presencas').delete().eq('aula_id', aulaEditando);
+        const pSalvar = presencas.map(p => ({ id: p.id, aula_id: aulaEditando, aluno_id: p.aluno_id, status: p.status }));
+        await supabaseClient.from('presencas').insert(pSalvar);
+        aulaEditando = null;
+    } else {
+        const novaAulaId = gerarId();
+        await supabaseClient.from('aulas').insert([{ id: novaAulaId, classe_id: classeAtual.id, data, tema, professor_id: professorId, visitantes, oferta }]);
+        const pSalvar = presencas.map(p => ({ id: p.id, aula_id: novaAulaId, aluno_id: p.aluno_id, status: p.status }));
+        await supabaseClient.from('presencas').insert(pSalvar);
+    }
 
     await carregarDadosDoBanco();
     voltarClasse();
-    alert("Aula registrada com sucesso!");
 }
 
-/* =========================================================
-   EDITAR E EXCLUIR AULA
-   ========================================================= */
-
 function editarAula(id) {
-    const aula = aulas.find(item => String(item.id) === String(id));
-
-    if (!aula) {
-        alert("Aula não encontrada.");
-        return;
-    }
-
-    const classe = obterClasse(aula.classeId);
-    if (!classe) {
-        alert("Classe da aula não encontrada.");
-        return;
-    }
-
-    classeAtual = classe;
+    const aula = aulas.find(a => String(a.id) === String(id));
+    if (!aula) return;
+    classeAtual = obterClasse(aula.classeId);
     aulaEditando = aula.id;
 
     esconderTodasTelas();
     document.getElementById("telaAula").classList.remove("hidden");
-
     document.getElementById("tituloAula").textContent = "Editar Aula";
-    document.getElementById("subtituloAula").textContent = classe.nome;
+    document.getElementById("subtituloAula").textContent = classeAtual.nome;
     document.getElementById("dataAula").value = aula.data;
     document.getElementById("temaAula").value = aula.tema || "";
     document.getElementById("visitantesAula").value = aula.visitantes || 0;
@@ -1066,116 +731,51 @@ function editarAula(id) {
     mostrarChamada(aula.presencas || []);
 }
 
-async function excluirAula(aulaId) {
-    if (!supabaseClient) return;
-
-    const aula = aulas.find(item => String(item.id) === String(aulaId));
-
-    if (!aula) {
-        alert("Aula não encontrada.");
-        return;
-    }
-
-    const confirmacao = confirm(
-        `Deseja realmente excluir esta aula?\n\n` +
-        `Data: ${formatarData(aula.data)}\n` +
-        `Tema: ${aula.tema}\n\n` +
-        `Essa ação não poderá ser desfeita.`
-    );
-
-    if (!confirmacao) return;
-
-    const { error } = await supabaseClient.from('aulas').delete().eq('id', aulaId);
-    if (error) {
-        console.error("Erro ao excluir aula:", error);
-        alert("Erro ao excluir aula.");
-        return;
-    }
-
+async function excluirAula(id) {
+    if (!confirm("Deseja excluir esta aula?")) return;
+    await supabaseClient.from('aulas').delete().eq('id', id);
     await carregarDadosDoBanco();
-
-    if (classeAtual) {
-        classeAtual = obterClasse(classeAtual.id);
-        mostrarDadosClasse();
-    }
-
-    atualizarDashboard();
-    alert("Aula excluída com sucesso!");
+    if (classeAtual) mostrarDadosClasse();
 }
 
 function voltarClasse() {
-    if (!classeAtual) {
-        voltarDashboard();
-        return;
-    }
-
+    if (!classeAtual) { voltarDashboard(); return; }
     esconderTodasTelas();
     document.getElementById("telaClasse").classList.remove("hidden");
-
     aulaEditando = null;
     mostrarDadosClasse();
 }
 
-/* =========================================================
-   HISTÓRICO
-   ========================================================= */
-
 function abrirHistorico() {
     if (!classeAtual) return;
-
     esconderTodasTelas();
     document.getElementById("telaHistorico").classList.remove("hidden");
     document.getElementById("subtituloHistorico").textContent = classeAtual.nome;
-
     mostrarHistorico();
 }
 
 function mostrarHistorico() {
     const container = document.getElementById("listaHistorico");
     container.innerHTML = "";
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id)).sort((a, b) => b.data.localeCompare(a.data));
+    if (aulasC.length === 0) { container.innerHTML = `<div class="panel"><div class="empty-state">Nenhuma aula.</div></div>`; return; }
 
-    if (!classeAtual) return;
-
-    const aulasClasse = aulas
-        .filter(aula => String(aula.classeId) === String(classeAtual.id))
-        .sort((a, b) => b.data.localeCompare(a.data));
-
-    if (aulasClasse.length === 0) {
-        container.innerHTML = `<div class="panel"><div class="empty-state">Nenhuma aula registrada.</div></div>`;
-        return;
-    }
-
-    aulasClasse.forEach(aula => {
-        const presencas = aula.presencas.filter(registro => registro.status === "presente").length;
-        const ausentes = aula.presencas.filter(registro => registro.status === "ausente").length;
-
+    aulasC.forEach(aula => {
+        const pres = aula.presencas.filter(p => p.status === "presente").length;
+        const aus = aula.presencas.filter(p => p.status === "ausente").length;
         container.innerHTML += `
             <div class="history-item">
                 <div class="history-info">
                     <strong>${aula.tema}</strong>
-                    <span>${formatarData(aula.data)} • Professor: ${aula.professorNome}</span>
+                    <span>${formatarData(aula.data)} • Prof: ${aula.professorNome}</span>
                 </div>
-
                 <div class="history-stats">
-                    <div class="history-stat">
-                        <span>Presentes</span>
-                        <strong>${presencas}</strong>
-                    </div>
-                    <div class="history-stat">
-                        <span>Ausentes</span>
-                        <strong>${ausentes}</strong>
-                    </div>
-                    <div class="history-stat">
-                        <span>Visitantes</span>
-                        <strong>${aula.visitantes || 0}</strong>
-                    </div>
-                    <div class="history-stat">
-                        <span>Oferta</span>
-                        <strong>${formatarMoeda(aula.oferta)}</strong>
-                    </div>
-
-                    <button class="icon-button" title="Editar" onclick="editarAula('${aula.id}')">✎</button>
-                    <button class="delete-button" title="Excluir" onclick="excluirAula('${aula.id}')">×</button>
+                    <div class="history-stat"><span>Presentes</span><strong>${pres}</strong></div>
+                    <div class="history-stat"><span>Ausentes</span><strong>${aus}</strong></div>
+                    <div class="history-stat"><span>Visitantes</span><strong>${aula.visitantes || 0}</strong></div>
+                    <div class="history-stat"><span>Oferta</span><strong>${formatarMoeda(aula.oferta)}</strong></div>
+                    <button class="icon-button" onclick="editarAula('${aula.id}')">✎</button>
+                    <button class="delete-button" onclick="excluirAula('${aula.id}')">×</button>
                 </div>
             </div>
         `;
@@ -1183,26 +783,17 @@ function mostrarHistorico() {
 }
 
 /* =========================================================
-   DASHBOARD DE MÉTRICAS E RELATÓRIOS
+   MÉTRICAS E RELATÓRIOS
    ========================================================= */
-
 function abrirDashboardMetricas() {
     esconderTodasTelas();
     document.getElementById("dashboardMetricas").classList.remove("hidden");
     mudarFiltroPeriodo();
-    calcularMetricasMensais();
 }
 
 function mudarFiltroPeriodo() {
     const periodo = document.getElementById("filtroPeriodo").value;
-    const grupoData = document.getElementById("grupoDataEspecifica");
-
-    if (periodo === "dia") {
-        grupoData.style.display = "block";
-    } else {
-        grupoData.style.display = "none";
-    }
-
+    document.getElementById("grupoDataEspecifica").style.display = periodo === "dia" ? "block" : "none";
     calcularRelatorioPeriodo();
 }
 
@@ -1213,24 +804,16 @@ function calcularRelatorioPeriodo() {
 
     let aulasFiltradas = aulas.filter(aula => {
         if (!aula.data) return false;
-        const dataAula = new Date(aula.data + "T00:00:00");
-
-        if (periodo === "dia") {
-            return aula.data === dataRefStr;
-        } else if (periodo === "semana") {
-            // Início e fim da semana (domingo a sábado)
-            const primeiroDia = new Date(dataRef);
-            primeiroDia.setDate(dataRef.getDate() - dataRef.getDay());
-            const ultimoDia = new Date(primeiroDia);
-            ultimoDia.setDate(primeiroDia.getDate() + 6);
-            return dataAula >= primeiroDia && dataAula <= ultimoDia;
-        } else if (periodo === "mes") {
-            return dataAula.getFullYear() === dataRef.getFullYear() && dataAula.getMonth() === dataRef.getMonth();
-        } else if (periodo === "trimestre") {
-            const mesAtual = dataAula.getMonth();
-            const trimestreAtual = Math.floor(mesAtual / 3);
-            const trimestreAula = Math.floor(dataAula.getMonth() / 3);
-            return dataAula.getFullYear() === dataRef.getFullYear() && trimestreAula === trimestreAtual;
+        const d = new Date(aula.data + "T00:00:00");
+        if (periodo === "dia") return aula.data === dataRefStr;
+        if (periodo === "semana") {
+            const inicio = new Date(dataRef); inicio.setDate(dataRef.getDate() - dataRef.getDay());
+            const fim = new Date(inicio); fim.setDate(inicio.getDate() + 6);
+            return d >= inicio && d <= fim;
+        }
+        if (periodo === "mes") return d.getFullYear() === dataRef.getFullYear() && d.getMonth() === dataRef.getMonth();
+        if (periodo === "trimestre") {
+            return d.getFullYear() === dataRef.getFullYear() && Math.floor(d.getMonth() / 3) === Math.floor(dataRef.getMonth() / 3);
         }
         return false;
     });
@@ -1238,264 +821,35 @@ function calcularRelatorioPeriodo() {
     const tbody = document.getElementById("tabelaRelatorioClasses");
     tbody.innerHTML = "";
 
-    let totalMat = 0;
-    let totalPres = 0;
-    let totalAus = 0;
-    let totalVis = 0;
-    let totalOfe = 0;
-
-    if (classes.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nenhuma classe cadastrada.</td></tr>`;
-    } else {
-        classes.forEach(classe => {
-            const aulasDaClasse = aulasFiltradas.filter(a => String(a.classeId) === String(classe.id));
-            const matriculados = classe.alunos.length;
-            
-            let presencas = 0;
-            let ausentes = 0;
-            let visitantes = 0;
-            let oferta = 0;
-
-            aulasDaClasse.forEach(aula => {
-                visitantes += Number(aula.visitantes || 0);
-                oferta += Number(aula.oferta || 0);
-                
-                aula.presencas.forEach(p => {
-                    if (p.status === "presente") presencas++;
-                    else ausentes++;
-                });
-            });
-
-            totalMat += matriculados;
-            totalPres += presencas;
-            totalAus += ausentes;
-            totalVis += visitantes;
-            totalOfe += oferta;
-
-            tbody.innerHTML += `
-                <tr>
-                    <td><strong>${classe.nome}</strong></td>
-                    <td>${matriculados}</td>
-                    <td>${presencas}</td>
-                    <td>${ausentes}</td>
-                    <td>${visitantes}</td>
-                    <td>${formatarMoeda(oferta)}</td>
-                </tr>
-            `;
-        });
-    }
-
-    document.getElementById("geralMatriculados").textContent = totalMat;
-    document.getElementById("geralPresentes").textContent = totalPres;
-    document.getElementById("geralAusentes").textContent = totalAus;
-    document.getElementById("geralVisitantes").textContent = totalVis;
-    document.getElementById("geralOfertas").textContent = formatarMoeda(totalOfe);
-}
-
-function obterPeriodoMeses(deslocamento = 0) {
-    const hoje = new Date();
-    const data = new Date(hoje.getFullYear(), hoje.getMonth() + deslocamento, 1);
-    return {
-        ano: data.getFullYear(),
-        mes: data.getMonth()
-    };
-}
-
-function calcularMetricasMensais() {
-    const atual = obterPeriodoMeses(0);
-    const anterior = obterPeriodoMeses(-1);
-
-    const dadosAtual = calcularPeriodo(atual.ano, atual.mes);
-    const dadosAnterior = calcularPeriodo(anterior.ano, anterior.mes);
-
-    document.getElementById("metricaClasses").textContent = dadosAtual.classes;
-    document.getElementById("metricaAlunos").textContent = dadosAtual.alunos;
-    document.getElementById("metricaProfessores").textContent = dadosAtual.professores;
-    document.getElementById("metricaAulas").textContent = dadosAtual.aulas;
-    document.getElementById("metricaPresencas").textContent = dadosAtual.presencas;
-    document.getElementById("metricaFrequencia").textContent = `${dadosAtual.frequencia.toFixed(1)}%`;
-    document.getElementById("metricaVisitantes").textContent = dadosAtual.visitantes;
-    document.getElementById("metricaOfertas").textContent = formatarMoeda(dadosAtual.ofertas);
-
-    mostrarTendencia("trendClasses", dadosAtual.classes, dadosAnterior.classes);
-    mostrarTendencia("trendAlunos", dadosAtual.alunos, dadosAnterior.alunos);
-    mostrarTendencia("trendProfessores", dadosAtual.professores, dadosAnterior.professores);
-    mostrarTendencia("trendAulas", dadosAtual.aulas, dadosAnterior.aulas);
-    mostrarTendencia("trendPresencas", dadosAtual.presencas, dadosAnterior.presencas);
-    mostrarTendencia("trendFrequencia", dadosAtual.frequencia, dadosAnterior.frequencia);
-    mostrarTendencia("trendVisitantes", dadosAtual.visitantes, dadosAnterior.visitantes);
-    mostrarTendencia("trendOfertas", dadosAtual.ofertas, dadosAnterior.ofertas);
-
-    mostrarComparacao(dadosAtual, dadosAnterior);
-}
-
-function calcularPeriodo(ano, mes) {
-    const aulasPeriodo = aulas.filter(aula => {
-        if (!aula.data) return false;
-        const partes = aula.data.split("-");
-        const anoAula = Number(partes[0]);
-        const mesAula = Number(partes[1]) - 1;
-        return anoAula === ano && mesAula === mes;
-    });
-
-    let presencas = 0;
-    let ausentes = 0;
-    let visitantes = 0;
-    let ofertas = 0;
-
-    aulasPeriodo.forEach(aula => {
-        aula.presencas.forEach(registro => {
-            if (registro.status === "presente") {
-                presencas++;
-            } else {
-                ausentes++;
-            }
-        });
-
-        visitantes += Number(aula.visitantes || 0);
-        ofertas += Number(aula.oferta || 0);
-    });
-
-    const totalPossivel = classes.reduce((total, classe) => {
-        const aulasDaClasse = aulasPeriodo.filter(aula => String(aula.classeId) === String(classe.id)).length;
-        return total + (classe.alunos.length * aulasDaClasse);
-    }, 0);
-
-    const frequencia = totalPossivel > 0 ? (presencas / totalPossivel) * 100 : 0;
-    const alunos = classes.reduce((total, classe) => total + classe.alunos.length, 0);
-    
-    let professoresCount = 0;
+    let tMat = 0, tPres = 0, tAus = 0, tVis = 0, tOfe = 0;
     classes.forEach(c => {
-        c.alunos.forEach(a => {
-            if (a.ehProfessor === true) professoresCount++;
+        const aulasC = aulasFiltradas.filter(a => String(a.classeId) === String(c.id));
+        const matriculadosAtivos = c.alunos.filter(a => a.ativo).length;
+        let pres = 0, aus = 0, vis = 0, ofe = 0;
+
+        aulasC.forEach(a => {
+            vis += Number(a.visitantes || 0);
+            ofe += Number(a.oferta || 0);
+            a.presencas.forEach(p => { if (p.status === "presente") pres++; else aus++; });
         });
-    });
 
-    return {
-        classes: classes.length,
-        alunos,
-        professores: professoresCount,
-        aulas: aulasPeriodo.length,
-        presencas,
-        ausentes,
-        visitantes,
-        ofertas,
-        frequencia
-    };
-}
+        tMat += matriculadosAtivos; tPres += pres; tAus += aus; tVis += vis; tOfe += ofe;
 
-function mostrarTendencia(elementoId, atual, anterior) {
-    const elemento = document.getElementById(elementoId);
-    if (!elemento) return;
-
-    elemento.classList.remove("trend-up", "trend-down", "trend-neutral");
-
-    if (anterior === 0 && atual === 0) {
-        elemento.textContent = "— sem alteração";
-        elemento.classList.add("trend-neutral");
-        return;
-    }
-
-    if (anterior === 0) {
-        elemento.textContent = "↑ novo";
-        elemento.classList.add("trend-up");
-        return;
-    }
-
-    const diferenca = atual - anterior;
-    const percentual = (diferenca / anterior) * 100;
-
-    if (Math.abs(percentual) < 1) {
-        elemento.textContent = "→ estável";
-        elemento.classList.add("trend-neutral");
-        return;
-    }
-
-    elemento.textContent = `${percentual > 0 ? "↑" : "↓"} ${Math.abs(percentual).toFixed(1)}%`;
-    elemento.classList.add(percentual > 0 ? "trend-up" : "trend-down");
-}
-
-function mostrarComparacao(atual, anterior) {
-    const container = document.getElementById("metricasComparacao");
-    container.innerHTML = "";
-
-    const metricas = [
-        { nome: "Alunos", atual: atual.alunos, anterior: anterior.alunos },
-        { nome: "Professores", atual: atual.professores, anterior: anterior.professores },
-        { nome: "Aulas", atual: atual.aulas, anterior: anterior.aulas },
-        { nome: "Presenças", atual: atual.presencas, anterior: anterior.presencas },
-        { nome: "Frequência", atual: atual.frequencia, anterior: anterior.frequencia, percentual: true },
-        { nome: "Visitantes", atual: atual.visitantes, anterior: anterior.visitantes },
-        { nome: "Ofertas", atual: atual.ofertas, anterior: anterior.ofertas, moeda: true }
-    ];
-
-    let positivas = 0;
-    let negativas = 0;
-
-    metricas.forEach(metrica => {
-        const resultado = calcularVariacao(metrica.atual, metrica.anterior);
-
-        if (resultado.tipo === "up") positivas++;
-        if (resultado.tipo === "down") negativas++;
-
-        let atualTexto = metrica.atual;
-        let anteriorTexto = metrica.anterior;
-
-        if (metrica.moeda) {
-            atualTexto = formatarMoeda(metrica.atual);
-            anteriorTexto = formatarMoeda(metrica.anterior);
-        } else if (metrica.percentual) {
-            atualTexto = `${metrica.atual.toFixed(1)}%`;
-            anteriorTexto = `${metrica.anterior.toFixed(1)}%`;
-        }
-
-        container.innerHTML += `
-            <div class="comparison-item">
-                <div>
-                    <div class="comparison-name">${metrica.nome}</div>
-                    <div class="comparison-label">Este mês</div>
-                </div>
-                <div class="comparison-value">${atualTexto}</div>
-                <div class="comparison-value">${anteriorTexto}</div>
-                <div class="comparison-change ${resultado.tipo === 'up' ? 'trend-up' : resultado.tipo === 'down' ? 'trend-down' : 'trend-neutral'}">
-                    ${resultado.texto}
-                </div>
-            </div>
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${c.nome}</strong></td>
+                <td>${matriculadosAtivos}</td>
+                <td>${pres}</td>
+                <td>${aus}</td>
+                <td>${vis}</td>
+                <td>${formatarMoeda(ofe)}</td>
+            </tr>
         `;
     });
 
-    const resultadoGeral = document.getElementById("resultadoGeral");
-    resultadoGeral.classList.remove("resultado-melhor", "resultado-pior", "resultado-estavel");
-
-    if (positivas > negativas) {
-        resultadoGeral.textContent = "↑ EBD melhorando";
-        resultadoGeral.classList.add("resultado-melhor");
-    } else if (negativas > positivas) {
-        resultadoGeral.textContent = "↓ EBD em queda";
-        resultadoGeral.classList.add("resultado-pior");
-    } else {
-        resultadoGeral.textContent = "→ EBD estável";
-        resultadoGeral.classList.add("resultado-estavel");
-    }
-}
-
-function calcularVariacao(atual, anterior) {
-    if (atual === 0 && anterior === 0) {
-        return { tipo: "neutral", texto: "→ 0%" };
-    }
-
-    if (anterior === 0) {
-        return { tipo: "up", texto: "↑ novo" };
-    }
-
-    const variacao = ((atual - anterior) / anterior) * 100;
-
-    if (Math.abs(variacao) < 1) {
-        return { tipo: "neutral", texto: "→ estável" };
-    }
-
-    return {
-        tipo: variacao > 0 ? "up" : "down",
-        texto: `${variacao > 0 ? "↑" : "↓"} ${Math.abs(variacao).toFixed(1)}%`
-    };
+    document.getElementById("geralMatriculados").textContent = tMat;
+    document.getElementById("geralPresentes").textContent = tPres;
+    document.getElementById("geralAusentes").textContent = tAus;
+    document.getElementById("geralVisitantes").textContent = tVis;
+    document.getElementById("geralOfertas").textContent = formatarMoeda(tOfe);
 }
