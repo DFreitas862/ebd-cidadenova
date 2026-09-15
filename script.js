@@ -110,8 +110,20 @@ function obterClasse(id) {
 }
 
 function esconderTodasTelas() {
-    ["dashboard", "telaAlunosGeral", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"].forEach(id => {
-        document.getElementById(id)?.classList.add("hidden");
+    const telas = [
+        "dashboard",
+        "telaAlunosGeral",
+        "dashboardMetricas",
+        "telaClasse",
+        "telaAula",
+        "telaHistorico"
+    ];
+
+    telas.forEach(id => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.classList.add("hidden");
+        }
     });
 }
 
@@ -222,15 +234,20 @@ function mostrarClasses() {
    ========================================================= */
 function abrirTelaAlunosGeral() {
     esconderTodasTelas();
-    document.getElementById("telaAlunosGeral").classList.remove("hidden");
-    document.getElementById("buscaAlunoGeral").value = "";
-    document.getElementById("filtroStatusAluno").value = "ativos";
+    const tela = document.getElementById("telaAlunosGeral");
+    if (tela) tela.classList.remove("hidden");
+
+    const busca = document.getElementById("buscaAlunoGeral");
+    if (busca) busca.value = "";
+
+    const filtro = document.getElementById("filtroStatusAluno");
+    if (filtro) filtro.value = "todos";
+
     renderizarTabelaAlunosGeral();
     renderizarRankingGeralEbd();
 }
 
 function calcularFaltasConsecutivasOuTotal(alunoId) {
-    // Calcula o total de faltas recentes do aluno nas últimas aulas ordenadas por data
     const aulasOrdenadas = [...aulas].sort((a, b) => b.data.localeCompare(a.data));
     let faltasContagem = 0;
 
@@ -240,7 +257,6 @@ function calcularFaltasConsecutivasOuTotal(alunoId) {
             if (reg.status === "ausente") {
                 faltasContagem++;
             } else {
-                // Se encontrou uma presença, interrompe a contagem consecutiva recente
                 break;
             }
         }
@@ -253,20 +269,28 @@ function renderizarTabelaAlunosGeral() {
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    const busca = document.getElementById("buscaAlunoGeral").value.toLowerCase();
-    const statusFiltro = document.getElementById("filtroStatusAluno").value;
+    const busca = document.getElementById("buscaAlunoGeral")?.value.toLowerCase() || "";
+    const statusFiltro = document.getElementById("filtroStatusAluno")?.value || "todos";
 
     let listaAlunos = [];
     classes.forEach(c => {
-        c.alunos.forEach(a => {
-            const faltas = calcularFaltasConsecutivasOuTotal(a.id);
-            listaAlunos.push({ ...a, nomeClasse: c.nome, faltasRecentes: faltas });
-        });
+        if (c.alunos && Array.isArray(c.alunos)) {
+            c.alunos.forEach(a => {
+                const faltas = calcularFaltasConsecutivasOuTotal(a.id);
+                const estaAtivo = a.ativo === true || a.ativo === null || a.ativo === undefined;
+                
+                listaAlunos.push({ 
+                    ...a, 
+                    nomeClasse: c.nome, 
+                    faltasRecentes: faltas,
+                    ativo: estaAtivo 
+                });
+            });
+        }
     });
 
-    // Aplica filtros
     listaAlunos = listaAlunos.filter(a => {
-        const matchNome = a.nome.toLowerCase().includes(busca);
+        const matchNome = (a.nome || "").toLowerCase().includes(busca);
         if (!matchNome) return false;
 
         if (statusFiltro === "ativos") return a.ativo === true;
@@ -287,10 +311,10 @@ function renderizarTabelaAlunosGeral() {
         tbody.innerHTML += `
             <tr class="${classeLinha}">
                 <td>
-                    <strong>${aluno.nome}</strong>
+                    <strong>${aluno.nome || 'Sem Nome'}</strong>
                     ${aluno.ehProfessor ? ' <small style="color:#2563eb;">(Professor)</small>' : ''}
                 </td>
-                <td>${aluno.nomeClasse}</td>
+                <td>${aluno.nomeClasse || '-'}</td>
                 <td>${aluno.telefone || '-'}</td>
                 <td>
                     ${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}
@@ -318,9 +342,11 @@ function renderizarRankingGeralEbd() {
 
     let todosAlunosAtivos = [];
     classes.forEach(c => {
-        c.alunos.filter(a => a.ativo).forEach(a => {
-            todosAlunosAtivos.push({ ...a, nomeClasse: c.nome });
-        });
+        if (c.alunos) {
+            c.alunos.filter(a => a.ativo === true || a.ativo === null || a.ativo === undefined).forEach(a => {
+                todosAlunosAtivos.push({ ...a, nomeClasse: c.nome });
+            });
+        }
     });
 
     if (todosAlunosAtivos.length === 0) {
