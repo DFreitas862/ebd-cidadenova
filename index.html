@@ -217,6 +217,31 @@
                 </div>
             </div>
 
+            <!-- PAINEL DE DEMANDA DE REVISTAS -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="eyebrow">PLANEJAMENTO TRIMESTRAL</span>
+                        <h2>Previsão de Encomenda de Revistas</h2>
+                        <p>Quantidade total de revistas ativas necessárias para o próximo trimestre com base nos alunos ativos.</p>
+                    </div>
+                </div>
+                <div class="stats-grid" style="margin-bottom: 0;">
+                    <div class="stat-card">
+                        <div class="stat-icon">📖</div>
+                        <div><span>Total de Alunos Ativos (Demanda)</span><strong id="totalRevistasNecessarias">0</strong></div>
+                    </div>
+                    <div class="stat-card success">
+                        <div class="stat-icon">✓</div>
+                        <div><span>Revistas Já Entregues</span><strong id="totalRevistasEntregues">0</strong></div>
+                    </div>
+                    <div class="stat-card warning">
+                        <div class="stat-icon">⏳</div>
+                        <div><span>Pendentes de Entrega</span><strong id="totalRevistasPendentes">0</strong></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">RELATÓRIO</span><h2>Desempenho por Classe no Período</h2></div>
@@ -249,7 +274,7 @@
             </div>
         </section>
 
-        <!-- DASHBOARD DA CLASSE (AGORA LIMPO: APENAS RANKING E AULAS) -->
+        <!-- DASHBOARD DA CLASSE -->
         <section id="telaClasse" class="hidden class-dashboard">
             <div class="class-dashboard-header">
                 <div>
@@ -422,7 +447,7 @@
         </div>
     </div>
 
-    <!-- MODAL ALUNO (COM CONTROLE DE REVISTA INDIVIDUAL) -->
+    <!-- MODAL ALUNO -->
     <div id="modalAluno" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -450,19 +475,27 @@
                 </select>
             </div>
 
-            <!-- CONTROLE DE REVISTA NO CADASTRO -->
+            <!-- CONTROLE DE REVISTA INDIVIDUAL NO CADASTRO -->
             <div class="form-grid" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
-                <div class="form-group" style="margin-bottom:0;">
+                <div class="form-group" style="margin-bottom:8px;">
                     <label>Situação da Revista</label>
                     <select id="statusRevistaAluno">
-                        <option value="entregue_pago">✓ Entregue e Pago</option>
-                        <option value="entregue_devendo">⚠️ Entregue (Devendo)</option>
                         <option value="nao_entregue">❌ Não Entregue</option>
+                        <option value="entregue_devendo">⚠️ Entregue (Devendo)</option>
+                        <option value="entregue_pago">✓ Entregue e Pago</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Trimestre / Tema da Revista</label>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label>Trimestre / Tema</label>
                     <input type="text" id="temaRevistaAluno" placeholder="Ex.: 3º Trimestre 2026">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Data que Pegou (Entrega)</label>
+                    <input type="date" id="dataEntregaRevista">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Data que Pagou</label>
+                    <input type="date" id="dataPagamentoRevista">
                 </div>
             </div>
 
@@ -486,6 +519,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=3"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
