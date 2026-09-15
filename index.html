@@ -28,6 +28,9 @@
             <button class="menu-item active" onclick="voltarDashboard()">
                 <span>⌂</span> Dashboard
             </button>
+            <button class="menu-item" onclick="abrirTelaAlunosGeral()">
+                <span>👥</span> Alunos Geral
+            </button>
             <button class="menu-item" onclick="abrirDashboardMetricas()">
                 <span>▥</span> Métricas & Relatórios
             </button>
@@ -57,6 +60,7 @@
                     <p>Acompanhe o movimento da sua EBD.</p>
                 </div>
                 <div class="header-actions">
+                    <button class="btn btn-light" onclick="abrirTelaAlunosGeral()">👥 Alunos Geral</button>
                     <button class="btn btn-light" onclick="abrirDashboardMetricas()">📊 Métricas & Relatórios</button>
                     <button class="btn btn-primary" onclick="abrirModalAluno()">+ Aluno</button>
                     <button class="btn btn-secondary" onclick="abrirModalClasse()">+ Nova Classe</button>
@@ -73,7 +77,7 @@
                     <div class="stat-icon">▦</div>
                     <div><span>Classes</span><strong id="totalClasses">0</strong></div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" onclick="abrirTelaAlunosGeral()" style="cursor: pointer;">
                     <div class="stat-icon">👥</div>
                     <div><span>Alunos Ativos</span><strong id="totalAlunos">0</strong></div>
                 </div>
@@ -107,6 +111,82 @@
                     <div><span class="eyebrow">CLASSES</span><h2>Suas classes</h2></div>
                 </div>
                 <div id="listaClasses" class="classes-grid"></div>
+            </div>
+        </section>
+
+        <!-- TELA GERAL DE ALUNOS (COM RANKING GERAL E ALERTA DE FALTAS) -->
+        <section id="telaAlunosGeral" class="hidden">
+            <div class="page-header">
+                <div>
+                    <span class="eyebrow">CADASTRO UNIFICADO</span>
+                    <h1>Gerenciamento de Alunos</h1>
+                    <p>Visualize todos os alunos, status, observações e o ranking geral da EBD.</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
+                    <button class="btn btn-primary" onclick="abrirModalAluno()">+ Novo Aluno</button>
+                </div>
+            </div>
+
+            <!-- FILTROS DE ALUNOS -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Filtros e Busca</h2>
+                </div>
+                <div class="report-filters">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Pesquisar por nome</label>
+                        <input type="text" id="buscaAlunoGeral" placeholder="Digite o nome do aluno..." oninput="filtrarAlunosGeral()">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Filtrar por Status</label>
+                        <select id="filtroStatusAluno" onchange="filtrarAlunosGeral()">
+                            <option value="todos">Todos</option>
+                            <option value="ativos" selected>Apenas Ativos</option>
+                            <option value="inativos">Apenas Inativos</option>
+                            <option value="faltosos">⚠️ Alerta (> 2 Faltas)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABELA DE ALUNOS GERAL -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="eyebrow">LISTAGEM</span>
+                        <h2>Todos os Alunos</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Classe</th>
+                                <th>Telefone</th>
+                                <th>Status</th>
+                                <th>Observações / Ações</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaAlunosGeral">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- RANKING GERAL DA EBD -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <span class="eyebrow">FREQUÊNCIA GERAL</span>
+                        <h2>Ranking Geral da EBD</h2>
+                        <p>Alunos mais assíduos de toda a escola dominical.</p>
+                    </div>
+                </div>
+                <div id="rankingGeralEbd" class="ranking-list"></div>
             </div>
         </section>
 
@@ -246,7 +326,7 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">FREQUÊNCIA</span><h2>Ranking de alunos</h2></div>
+                    <div><span class="eyebrow">FREQUÊNCIA</span><h2>Ranking da classe</h2></div>
                 </div>
                 <div id="rankingAlunos" class="ranking-list"></div>
             </div>
@@ -396,6 +476,10 @@
                 <select id="classeAluno">
                     <option value="">Selecione a classe</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label>Observações / Histórico (Ex.: Fazer visita, Já visitou, Mudou de igreja)</label>
+                <textarea id="observacoesAluno" rows="3" placeholder="Digite notas ou tags importantes sobre o aluno..."></textarea>
             </div>
             <label class="checkbox-field">
                 <input type="checkbox" id="ehProfessor">
