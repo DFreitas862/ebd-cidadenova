@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (COM REVISTAS E ALUNOS ATIVOS/INATIVOS)
+   EBD MANAGER - SUPABASE (ALUNOS GERAL, RANKING E FALTAS)
    ========================================================= */
 
 let supabaseClient = null;
@@ -41,7 +41,8 @@ async function carregarDadosDoBanco() {
                 ...a,
                 ehProfessor: a.eh_professor,
                 dataNascimento: a.data_nascimento,
-                ativo: a.ativo !== false // Padrão true se null
+                ativo: a.ativo === true || a.ativo === null || a.ativo === undefined ? true : false,
+                observacoes: a.observacoes || ''
             }))
         }));
 
@@ -73,6 +74,9 @@ async function carregarDadosDoBanco() {
 
         atualizarDashboard();
         if (classeAtual) mostrarDadosClasse();
+        if (!document.getElementById("telaAlunosGeral").classList.contains("hidden")) {
+            renderizarTabelaAlunosGeral();
+        }
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
     }
@@ -106,7 +110,7 @@ function obterClasse(id) {
 }
 
 function esconderTodasTelas() {
-    ["dashboard", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"].forEach(id => {
+    ["dashboard", "telaAlunosGeral", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"].forEach(id => {
         document.getElementById(id)?.classList.add("hidden");
     });
 }
@@ -213,6 +217,151 @@ function mostrarClasses() {
     });
 }
 
+/* =========================================================
+   TELA GERAL DE ALUNOS (RANKING E ALERTA DE FALTAS)
+   ========================================================= */
+function abrirTelaAlunosGeral() {
+    esconderTodasTelas();
+    document.getElementById("telaAlunosGeral").classList.remove("hidden");
+    document.getElementById("buscaAlunoGeral").value = "";
+    document.getElementById("filtroStatusAluno").value = "ativos";
+    renderizarTabelaAlunosGeral();
+    renderizarRankingGeralEbd();
+}
+
+function calcularFaltasConsecutivasOuTotal(alunoId) {
+    // Calcula o total de faltas recentes do aluno nas últimas aulas ordenadas por data
+    const aulasOrdenadas = [...aulas].sort((a, b) => b.data.localeCompare(a.data));
+    let faltasContagem = 0;
+
+    for (let aula of aulasOrdenadas) {
+        const reg = aula.presencas.find(p => String(p.alunoId) === String(alunoId));
+        if (reg) {
+            if (reg.status === "ausente") {
+                faltasContagem++;
+            } else {
+                // Se encontrou uma presença, interrompe a contagem consecutiva recente
+                break;
+            }
+        }
+    }
+    return faltasContagem;
+}
+
+function renderizarTabelaAlunosGeral() {
+    const tbody = document.getElementById("tabelaAlunosGeral");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const busca = document.getElementById("buscaAlunoGeral").value.toLowerCase();
+    const statusFiltro = document.getElementById("filtroStatusAluno").value;
+
+    let listaAlunos = [];
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            const faltas = calcularFaltasConsecutivasOuTotal(a.id);
+            listaAlunos.push({ ...a, nomeClasse: c.nome, faltasRecentes: faltas });
+        });
+    });
+
+    // Aplica filtros
+    listaAlunos = listaAlunos.filter(a => {
+        const matchNome = a.nome.toLowerCase().includes(busca);
+        if (!matchNome) return false;
+
+        if (statusFiltro === "ativos") return a.ativo === true;
+        if (statusFiltro === "inativos") return a.ativo === false;
+        if (statusFiltro === "faltosos") return a.ativo === true && a.faltasRecentes > 2;
+        return true;
+    });
+
+    if (listaAlunos.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nenhum aluno encontrado.</td></tr>`;
+        return;
+    }
+
+    listaAlunos.forEach(aluno => {
+        const temAlerta = aluno.faltasRecentes > 2;
+        const classeLinha = temAlerta ? "alerta-faltas" : "";
+
+        tbody.innerHTML += `
+            <tr class="${classeLinha}">
+                <td>
+                    <strong>${aluno.nome}</strong>
+                    ${aluno.ehProfessor ? ' <small style="color:#2563eb;">(Professor)</small>' : ''}
+                </td>
+                <td>${aluno.nomeClasse}</td>
+                <td>${aluno.telefone || '-'}</td>
+                <td>
+                    ${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}
+                    ${temAlerta ? `<br><span class="badge-alerta">⚠️ ${aluno.faltasRecentes} faltas seguidas</span>` : ''}
+                </td>
+                <td>
+                    <span class="badge-obs" title="${aluno.observacoes || ''}">${aluno.observacoes || 'Nenhuma obs.'}</span>
+                </td>
+                <td>
+                    <button class="icon-button" onclick="editarAluno('${aluno.id}')" title="Editar">✎</button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function filtrarAlunosGeral() {
+    renderizarTabelaAlunosGeral();
+}
+
+function renderizarRankingGeralEbd() {
+    const container = document.getElementById("rankingGeralEbd");
+    if (!container) return;
+    container.innerHTML = "";
+
+    let todosAlunosAtivos = [];
+    classes.forEach(c => {
+        c.alunos.filter(a => a.ativo).forEach(a => {
+            todosAlunosAtivos.push({ ...a, nomeClasse: c.nome });
+        });
+    });
+
+    if (todosAlunosAtivos.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum aluno ativo cadastrado.</div>`;
+        return;
+    }
+
+    const ranking = todosAlunosAtivos.map(aluno => {
+        let presentes = 0, ausentes = 0;
+        aulas.forEach(a => {
+            const reg = a.presencas.find(p => String(p.alunoId) === String(aluno.id));
+            if (reg) { if (reg.status === "presente") presentes++; else ausentes++; }
+        });
+        const total = presentes + ausentes;
+        const freq = total > 0 ? (presentes / total) * 100 : 0;
+        return { aluno, presentes, freq };
+    });
+
+    ranking.sort((a, b) => b.freq - a.freq);
+
+    ranking.slice(0, 10).forEach((item, index) => {
+        container.innerHTML += `
+            <div class="ranking-item">
+                <div class="ranking-position">${index + 1}</div>
+                <div class="ranking-name">
+                    <strong>${item.aluno.nome}</strong>
+                    <span>${item.aluno.nomeClasse} • ${item.aluno.ehProfessor ? "Professor" : "Aluno"}</span>
+                </div>
+                <div class="ranking-number"><span>Presenças</span><strong>${item.presentes}</strong></div>
+                <div>
+                    <div class="frequency-bar"><div style="width: ${item.freq}%"></div></div>
+                    <div class="ranking-number" style="margin-top:5px"><strong>${item.freq.toFixed(1)}%</strong></div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+/* =========================================================
+   MODAL CLASSE & EXCLUIR CLASSE
+   ========================================================= */
 function abrirModalClasse() {
     document.getElementById("nomeClasse").value = "";
     document.getElementById("diaClasse").value = "Domingo";
@@ -294,7 +443,7 @@ function mostrarDadosClasse() {
     document.getElementById("resumoOfertas").textContent = formatarMoeda(ofertas);
 
     mostrarControleRevistas();
-    mostrarRanking();
+    mostrarRankingClasse();
     mostrarAlunosClasse();
     mostrarAulasClasse();
 }
@@ -308,7 +457,6 @@ async function adicionarTemaRevista() {
     const tema = input.value.trim();
     if (!tema) { alert("Digite o tema da revista."); return; }
 
-    // Insere registros na tabela para cada aluno ativo da classe
     const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
     const novasRevistas = alunosAtivos.map(aluno => ({
         id: gerarId(),
@@ -334,8 +482,6 @@ function mostrarControleRevistas() {
 
     const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
     const alunoIdsAtivos = alunosAtivos.map(a => a.id);
-
-    // Agrupa revistas por tema que pertencem aos alunos desta classe
     const revistasDaClasse = revistas.filter(r => alunoIdsAtivos.includes(r.aluno_id));
     const temasUnicos = [...new Set(revistasDaClasse.map(r => r.tema_revista))];
 
@@ -401,8 +547,6 @@ async function alternarStatusPagamento(alunoId, tema, novoStatus) {
 async function excluirTemaRevista(tema) {
     if (!confirm(`Deseja apagar o tema "${tema}" de todos os registros da classe?`)) return;
     const alunoIdsAtivos = classeAtual.alunos.map(a => a.id);
-    
-    // Deleta do Supabase
     for (let id of alunoIdsAtivos) {
         await supabaseClient.from('revistas_alunos').delete().eq('aluno_id', id).eq('tema_revista', tema);
     }
@@ -410,9 +554,9 @@ async function excluirTemaRevista(tema) {
 }
 
 /* =========================================================
-   RANKING & ALUNOS
+   RANKING DA CLASSE & ALUNOS
    ========================================================= */
-function mostrarRanking() {
+function mostrarRankingClasse() {
     const container = document.getElementById("rankingAlunos");
     if (!container || !classeAtual) return;
     container.innerHTML = "";
@@ -476,6 +620,7 @@ function mostrarAlunosClasse() {
                             ${aluno.ehProfessor ? "Professor" : "Aluno"}
                             ${aluno.telefone ? " • " + aluno.telefone : ""}
                             ${!aluno.ativo ? ' • <span class="badge-inativo">Inativo</span>' : ''}
+                            ${aluno.observacoes ? '<br>Obs: ' + aluno.observacoes : ''}
                         </span>
                     </div>
                 </div>
@@ -527,6 +672,7 @@ function abrirModalAluno() {
     document.getElementById("nomeAluno").value = "";
     document.getElementById("telefoneAluno").value = "";
     document.getElementById("dataNascimentoAluno").value = "";
+    document.getElementById("observacoesAluno").value = "";
     document.getElementById("ehProfessor").checked = false;
     document.getElementById("alunoAtivo").checked = true;
 
@@ -548,6 +694,7 @@ async function salvarAluno() {
     const nome = document.getElementById("nomeAluno").value.trim();
     const telefone = document.getElementById("telefoneAluno").value.trim();
     const dataNascimento = document.getElementById("dataNascimentoAluno").value;
+    const observacoes = document.getElementById("observacoesAluno").value.trim();
     const classeId = document.getElementById("classeAluno").value;
     const ehProfessor = document.getElementById("ehProfessor").checked;
     const ativo = document.getElementById("alunoAtivo").checked;
@@ -556,12 +703,12 @@ async function salvarAluno() {
 
     if (alunoEditando) {
         const { error } = await supabaseClient.from('alunos').update({
-            nome, telefone, data_nascimento: dataNascimento || null, classe_id: classeId, eh_professor: ehProfessor, ativo
+            nome, telefone, data_nascimento: dataNascimento || null, observacoes, classe_id: classeId, eh_professor: ehProfessor, ativo
         }).eq('id', alunoEditando);
         if (error) { alert("Erro ao atualizar aluno."); return; }
     } else {
         const novo = {
-            id: gerarId(), classe_id: classeId, nome, telefone, data_nascimento: dataNascimento || null, eh_professor: ehProfessor, ativo
+            id: gerarId(), classe_id: classeId, nome, telefone, data_nascimento: dataNascimento || null, observacoes, eh_professor: ehProfessor, ativo
         };
         const { error } = await supabaseClient.from('alunos').insert([novo]);
         if (error) { alert("Erro ao salvar aluno."); return; }
@@ -586,6 +733,7 @@ function editarAluno(id) {
     document.getElementById("nomeAluno").value = alunoObj.nome;
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
     document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
+    document.getElementById("observacoesAluno").value = alunoObj.observacoes || "";
     document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
     document.getElementById("alunoAtivo").checked = alunoObj.ativo;
 
@@ -630,7 +778,6 @@ function mostrarChamada(registros = []) {
     container.innerHTML = "";
     if (!classeAtual) return;
 
-    // Faz a chamada apenas considerando alunos ativos
     const ativos = classeAtual.alunos.filter(a => a.ativo);
     if (ativos.length === 0) {
         container.innerHTML = `<div class="empty-state">Nenhum aluno ativo nesta classe para fazer chamada.</div>`;
