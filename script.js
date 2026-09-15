@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (REVISTAS COM DATAS E MÉTRICAS)
+   EBD MANAGER - SUPABASE (VERSÃO FINAL CORRIGIDA)
    ========================================================= */
 
 let supabaseClient = null;
@@ -302,9 +302,9 @@ function renderizarTabelaAlunosGeral() {
 
         let badgeRevista = '<span class="badge-inativo">Sem Revista</span>';
         if (aluno.statusRevista === 'entregue_pago') {
-            badgeRevista = `<span class="badge-ativo" title="Entregue: ${formatarData(aluno.dataEntregaRevista)} | Pago: ${formatarData(aluno.dataPagamentoRevista)}">📖 Pago (${formatarData(aluno.dataPagamentoRevista)})</span>`;
+            badgeRevista = `<span class="badge-ativo">📖 Pago (${formatarData(aluno.dataPagamentoRevista)})</span>`;
         } else if (aluno.statusRevista === 'entregue_devendo') {
-            badgeRevista = `<span class="badge-alerta" title="Entregue em: ${formatarData(aluno.dataEntregaRevista)}">📖 Devendo (Entregue: ${formatarData(aluno.dataEntregaRevista)})</span>`;
+            badgeRevista = `<span class="badge-alerta">📖 Devendo (Entregue: ${formatarData(aluno.dataEntregaRevista)})</span>`;
         }
 
         tbody.innerHTML += `
