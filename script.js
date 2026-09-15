@@ -1,11 +1,10 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (VERSÃO COMPLETA ATUALIZADA)
+   EBD MANAGER - SUPABASE (REVISTAS INDIVIDUAIS NO CADASTRO)
    ========================================================= */
 
 let supabaseClient = null;
 let classes = [];
 let aulas = [];
-let revistas = [];
 
 let classeAtual = null;
 let aulaEditando = null;
@@ -42,7 +41,9 @@ async function carregarDadosDoBanco() {
                 ehProfessor: a.eh_professor,
                 dataNascimento: a.data_nascimento,
                 ativo: a.ativo === true || a.ativo === null || a.ativo === undefined ? true : false,
-                observacoes: a.observacoes || ''
+                observacoes: a.observacoes || '',
+                statusRevista: a.status_revista || 'nao_entregue',
+                temaRevista: a.tema_revista || ''
             }))
         }));
 
@@ -65,12 +66,6 @@ async function carregarDadosDoBanco() {
                 status: p.status
             }))
         }));
-
-        const { data: dadosRevistas, error: errR } = await supabaseClient
-            .from('revistas_alunos')
-            .select('*');
-        if (errR) throw errR;
-        revistas = dadosRevistas || [];
 
         atualizarDashboard();
         
@@ -115,20 +110,10 @@ function obterClasse(id) {
 }
 
 function esconderTodasTelas() {
-    const telas = [
-        "dashboard",
-        "telaAlunosGeral",
-        "dashboardMetricas",
-        "telaClasse",
-        "telaAula",
-        "telaHistorico"
-    ];
-
+    const telas = ["dashboard", "telaAlunosGeral", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"];
     telas.forEach(id => {
         const elemento = document.getElementById(id);
-        if (elemento) {
-            elemento.classList.add("hidden");
-        }
+        if (elemento) elemento.classList.add("hidden");
     });
 }
 
@@ -235,7 +220,7 @@ function mostrarClasses() {
 }
 
 /* =========================================================
-   TELA GERAL DE ALUNOS (RANKING E ALERTA DE FALTAS)
+   TELA GERAL DE ALUNOS
    ========================================================= */
 function abrirTelaAlunosGeral() {
     esconderTodasTelas();
@@ -259,11 +244,8 @@ function calcularFaltasConsecutivasOuTotal(alunoId) {
     for (let aula of aulasOrdenadas) {
         const reg = aula.presencas.find(p => String(p.alunoId) === String(alunoId));
         if (reg) {
-            if (reg.status === "ausente") {
-                faltasContagem++;
-            } else {
-                break;
-            }
+            if (reg.status === "ausente") faltasContagem++;
+            else break;
         }
     }
     return faltasContagem;
@@ -313,6 +295,11 @@ function renderizarTabelaAlunosGeral() {
         const temAlerta = aluno.faltasRecentes > 2;
         const classeLinha = temAlerta ? "alerta-faltas" : "";
 
+        // Rótulo da revista
+        let badgeRevista = '<span class="badge-inativo">Sem Revista</span>';
+        if (aluno.statusRevista === 'entregue_pago') badgeRevista = '<span class="badge-ativo">📖 Revista: Pago</span>';
+        else if (aluno.statusRevista === 'entregue_devendo') badgeRevista = '<span class="badge-alerta">📖 Revista: Devendo</span>';
+
         tbody.innerHTML += `
             <tr class="${classeLinha}">
                 <td>
@@ -323,6 +310,7 @@ function renderizarTabelaAlunosGeral() {
                 <td>${aluno.telefone || '-'}</td>
                 <td>
                     ${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}
+                    <br>${badgeRevista}
                     ${temAlerta ? `<br><span class="badge-alerta">⚠️ ${aluno.faltasRecentes} faltas seguidas</span>` : ''}
                 </td>
                 <td>
@@ -391,7 +379,7 @@ function renderizarRankingGeralEbd() {
 }
 
 /* =========================================================
-   MODAL CLASSE & EXCLUIR CLASSE
+   MODAL CLASSE
    ========================================================= */
 function abrirModalClasse() {
     document.getElementById("nomeClasse").value = "";
@@ -466,114 +454,8 @@ function mostrarDadosClasse() {
     document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
     document.getElementById("classeFrequencia").textContent = `${freq.toFixed(1)}%`;
 
-    mostrarControleRevistas();
     mostrarRankingClasse();
     mostrarAulasClasse();
-}
-
-/* =========================================================
-   CONTROLE DE REVISTAS POR TEMA
-   ========================================================= */
-async function adicionarTemaRevista() {
-    if (!supabaseClient || !classeAtual) return;
-    const input = document.getElementById("inputTemaRevista");
-    const tema = input.value.trim();
-    if (!tema) { alert("Digite o tema da revista."); return; }
-
-    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
-    const novasRevistas = alunosAtivos.map(aluno => ({
-        id: gerarId(),
-        aluno_id: aluno.id,
-        tema_revista: tema,
-        revista_entregue: false,
-        status_pagamento: 'devendo'
-    }));
-
-    if (novasRevistas.length > 0) {
-        const { error } = await supabaseClient.from('revistas_alunos').insert(novasRevistas);
-        if (error) { alert("Erro ao criar controle de revistas."); return; }
-    }
-
-    input.value = "";
-    await carregarDadosDoBanco();
-}
-
-function mostrarControleRevistas() {
-    const container = document.getElementById("listaControleRevistas");
-    if (!container || !classeAtual) return;
-    container.innerHTML = "";
-
-    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
-    const alunoIdsAtivos = alunosAtivos.map(a => a.id);
-    const revistasDaClasse = revistas.filter(r => alunoIdsAtivos.includes(r.aluno_id));
-    const temasUnicos = [...new Set(revistasDaClasse.map(r => r.tema_revista))];
-
-    if (temasUnicos.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum tema de revista cadastrado para esta classe.</div>`;
-        return;
-    }
-
-    temasUnicos.forEach(tema => {
-        let blocoHtml = `
-            <div class="revista-card-bloco">
-                <div class="revista-card-topo">
-                    <strong>📖 Revista: ${tema}</strong>
-                    <button class="delete-button" onclick="excluirTemaRevista('${tema}')" title="Excluir tema">×</button>
-                </div>
-        `;
-
-        alunosAtivos.forEach(aluno => {
-            const rev = revistas.find(r => r.aluno_id === aluno.id && r.tema_revista === tema);
-            const entregue = rev ? rev.revista_entregue : false;
-            const pagamento = rev ? rev.status_pagamento : 'devendo';
-
-            blocoHtml += `
-                <div class="revista-aluno-row">
-                    <span>${aluno.nome}</span>
-                    <div class="revista-botoes-grupo">
-                        <button class="btn-status ${entregue ? 'entregue' : ''}" onclick="alternarRevistaEntregue('${aluno.id}', '${tema}', ${!entregue})">
-                            ${entregue ? '✓ Entregue' : '✗ Não Entregue'}
-                        </button>
-                        <button class="btn-status ${pagamento === 'pago' ? 'pago' : 'devendo'}" onclick="alternarStatusPagamento('${aluno.id}', '${tema}', '${pagamento === 'pago' ? 'devendo' : 'pago'}')">
-                            ${pagamento === 'pago' ? '🟢 Pago' : '🔴 Devendo'}
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-
-        blocoHtml += `</div>`;
-        container.innerHTML += blocoHtml;
-    });
-}
-
-async function alternarRevistaEntregue(alunoId, tema, novoStatus) {
-    let rev = revistas.find(r => r.aluno_id === alunoId && r.tema_revista === tema);
-    if (rev) {
-        await supabaseClient.from('revistas_alunos').update({ revista_entregue: novoStatus }).eq('id', rev.id);
-    } else {
-        await supabaseClient.from('revistas_alunos').insert([{ id: gerarId(), aluno_id: alunoId, tema_revista: tema, revista_entregue: novoStatus, status_pagamento: 'devendo' }]);
-    }
-    await carregarDadosDoBanco();
-}
-
-async function alternarStatusPagamento(alunoId, tema, novoStatus) {
-    let rev = revistas.find(r => r.aluno_id === alunoId && r.tema_revista === tema);
-    if (rev) {
-        await supabaseClient.from('revistas_alunos').update({ status_pagamento: novoStatus }).eq('id', rev.id);
-    } else {
-        await supabaseClient.from('revistas_alunos').insert([{ id: gerarId(), aluno_id: alunoId, tema_revista: tema, revista_entregue: false, status_pagamento: novoStatus }]);
-    }
-    await carregarDadosDoBanco();
-}
-
-async function excluirTemaRevista(tema) {
-    if (!confirm(`Deseja apagar o tema "${tema}" de todos os registros da classe?`)) return;
-    const alunoIdsAtivos = classeAtual.alunos.map(a => a.id);
-    for (let id of alunoIdsAtivos) {
-        await supabaseClient.from('revistas_alunos').delete().eq('aluno_id', id).eq('tema_revista', tema);
-    }
-    await carregarDadosDoBanco();
 }
 
 /* =========================================================
@@ -662,6 +544,8 @@ function abrirModalAluno() {
     document.getElementById("telefoneAluno").value = "";
     document.getElementById("dataNascimentoAluno").value = "";
     document.getElementById("observacoesAluno").value = "";
+    document.getElementById("statusRevistaAluno").value = "nao_entregue";
+    document.getElementById("temaRevistaAluno").value = "";
     document.getElementById("ehProfessor").checked = false;
     document.getElementById("alunoAtivo").checked = true;
 
@@ -684,22 +568,32 @@ async function salvarAluno() {
     const telefone = document.getElementById("telefoneAluno").value.trim();
     const dataNascimento = document.getElementById("dataNascimentoAluno").value;
     const observacoes = document.getElementById("observacoesAluno").value.trim();
+    const statusRevista = document.getElementById("statusRevistaAluno").value;
+    const temaRevista = document.getElementById("temaRevistaAluno").value.trim();
     const classeId = document.getElementById("classeAluno").value;
     const ehProfessor = document.getElementById("ehProfessor").checked;
     const ativo = document.getElementById("alunoAtivo").checked;
 
     if (!nome || !classeId) { alert("Preencha o nome e selecione a classe."); return; }
 
+    const dadosAluno = {
+        nome,
+        telefone,
+        data_nascimento: dataNascimento || null,
+        observacoes,
+        status_revista: statusRevista,
+        tema_revista: temaRevista,
+        classe_id: classeId,
+        eh_professor: ehProfessor,
+        ativo
+    };
+
     if (alunoEditando) {
-        const { error } = await supabaseClient.from('alunos').update({
-            nome, telefone, data_nascimento: dataNascimento || null, observacoes, classe_id: classeId, eh_professor: ehProfessor, ativo
-        }).eq('id', alunoEditando);
+        const { error } = await supabaseClient.from('alunos').update(dadosAluno).eq('id', alunoEditando);
         if (error) { alert("Erro ao atualizar aluno."); return; }
     } else {
-        const novo = {
-            id: gerarId(), classe_id: classeId, nome, telefone, data_nascimento: dataNascimento || null, observacoes, eh_professor: ehProfessor, ativo
-        };
-        const { error } = await supabaseClient.from('alunos').insert([novo]);
+        dadosAluno.id = gerarId();
+        const { error } = await supabaseClient.from('alunos').insert([dadosAluno]);
         if (error) { alert("Erro ao salvar aluno."); return; }
     }
 
@@ -723,6 +617,8 @@ function editarAluno(id) {
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
     document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
     document.getElementById("observacoesAluno").value = alunoObj.observacoes || "";
+    document.getElementById("statusRevistaAluno").value = alunoObj.statusRevista || "nao_entregue";
+    document.getElementById("temaRevistaAluno").value = alunoObj.temaRevista || "";
     document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
     document.getElementById("alunoAtivo").checked = alunoObj.ativo;
 
@@ -963,7 +859,7 @@ function calcularRelatorioPeriodo() {
         const matriculadosAtivos = c.alunos.filter(a => a.ativo).length;
         let pres = 0, aus = 0, vis = 0, ofe = 0;
 
-        aulasC.forEach(a => {
+        aulasC.exec = aulasC.forEach(a => {
             vis += Number(a.visitantes || 0);
             ofe += Number(a.oferta || 0);
             a.presencas.forEach(p => { if (p.status === "presente") pres++; else aus++; });
