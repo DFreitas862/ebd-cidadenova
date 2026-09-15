@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (VERSÃO CORRIGIDA)
+   EBD MANAGER - SUPABASE (VERSÃO COMPLETA ATUALIZADA)
    ========================================================= */
 
 let supabaseClient = null;
@@ -74,7 +74,6 @@ async function carregarDadosDoBanco() {
 
         atualizarDashboard();
         
-        // Se estiver dentro de uma classe, atualiza os dados dela em tempo real
         if (classeAtual) {
             classeAtual = obterClasse(classeAtual.id);
             mostrarDadosClasse();
@@ -466,13 +465,6 @@ function mostrarDadosClasse() {
     document.getElementById("classeTotalVisitantes").textContent = visitantes;
     document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
     document.getElementById("classeFrequencia").textContent = `${freq.toFixed(1)}%`;
-
-    document.getElementById("resumoNomeClasse").textContent = classeAtual.nome;
-    document.getElementById("resumoInfoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
-    document.getElementById("resumoAulas").textContent = aulasC.length;
-    document.getElementById("resumoPresencas").textContent = presencas;
-    document.getElementById("resumoVisitantes").textContent = visitantes;
-    document.getElementById("resumoOfertas").textContent = formatarMoeda(ofertas);
 
     mostrarControleRevistas();
     mostrarRankingClasse();
