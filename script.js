@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT COMPLETO COM IMPRESSÃO
+   EBD MANAGER PRO - SCRIPT COMPLETO E INTEGRADO
    ========================================================= */
 
 let supabaseClient = null;
@@ -47,7 +47,6 @@ async function carregarDadosDoBanco() {
                 ehProfessor: a.eh_professor,
                 dataNascimento: a.data_nascimento,
                 ativo: a.ativo === true || a.ativo === null || a.ativo === undefined ? true : false,
-                observacoes: a.observacoes || '',
                 statusRevista: a.status_revista || 'nao_entregue',
                 temaRevista: a.tema_revista || '',
                 dataEntregaRevista: a.data_entrega_revista || '',
@@ -73,7 +72,7 @@ async function carregarDadosDoBanco() {
         const { data: dadosFin } = await supabaseClient.from('financeiro_caixa').select('*');
         financas = dadosFin || [];
 
-        const { data: dadosPront } = await supabaseClient.from('prontuario_lancamentos').select('*');
+        const { data: dadosPront } = await supabaseClient.from('prontuario_lancamentos').select('*').order('data_lancamento', { ascending: false });
         prontuarioGeral = dadosPront || [];
 
         atualizarDashboard();
@@ -470,7 +469,7 @@ function renderizarTabelaAlunosGeral() {
         else if (aluno.statusRevista === 'entregue_devendo') badgeRevista = '<span class="badge-alerta">📖 Revista: Devendo</span>';
 
         const prontAluno = prontuarioGeral.filter(p => String(p.aluno_id) === String(aluno.id));
-        const ultimaObs = prontAluno.length > 0 ? prontAluno[prontAluno.length - 1].descricao : (aluno.observacoes || 'Nenhuma obs.');
+        const ultimaObs = prontAluno.length > 0 ? prontAluno[0].descricao : 'Nenhuma nota.';
 
         tbody.innerHTML += `
             <tr>
@@ -624,6 +623,7 @@ function abrirModalAluno() {
     document.getElementById("tituloModalAluno").textContent = "Novo Aluno";
     document.getElementById("nomeAluno").value = "";
     document.getElementById("telefoneAluno").value = "";
+    document.getElementById("dataNascimentoAluno").value = "";
     document.getElementById("observacoesAluno").value = "";
     const select = document.getElementById("classeAluno");
     select.innerHTML = `<option value="">Selecione a classe</option>`;
@@ -642,21 +642,44 @@ async function salvarAluno() {
     if (!supabaseClient) return;
     const nome = document.getElementById("nomeAluno").value.trim();
     const telefone = document.getElementById("telefoneAluno").value.trim();
-    const observacoes = document.getElementById("observacoesAluno").value.trim();
+    const dataNascimento = document.getElementById("dataNascimentoAluno").value;
+    const obsProntuario = document.getElementById("observacoesAluno").value.trim();
     const classeId = document.getElementById("classeAluno").value;
     const ehProfessor = document.getElementById("ehProfessor").checked;
     const ativo = document.getElementById("alunoAtivo").checked;
 
     if (!nome || !classeId) { alert("Preencha o nome e a classe."); return; }
 
-    const dados = { nome, telefone, observacoes, classe_id: classeId, eh_professor: ehProfessor, ativo };
+    const dados = { 
+        nome, 
+        telefone, 
+        data_nascimento: dataNascimento || null, 
+        classe_id: classeId, 
+        eh_professor: ehProfessor, 
+        ativo 
+    };
+
+    let alunoIdFinal = alunoEditando;
 
     if (alunoEditando) {
         await supabaseClient.from('alunos').update(dados).eq('id', alunoEditando);
     } else {
-        dados.id = gerarId();
+        alunoIdFinal = gerarId();
+        dados.id = alunoIdFinal;
         await supabaseClient.from('alunos').insert([dados]);
     }
+
+    if (obsProntuario) {
+        await supabaseClient.from('prontuario_lancamentos').insert([{
+            id: gerarId(),
+            aluno_id: alunoIdFinal,
+            tipo: 'anotacao',
+            descricao: obsProntuario,
+            valor: 0,
+            data_lancamento: obterHoje()
+        }]);
+    }
+
     fecharModalAluno();
     await carregarDadosDoBanco();
 }
@@ -672,7 +695,11 @@ function editarAluno(id) {
     document.getElementById("tituloModalAluno").textContent = "Editar Aluno";
     document.getElementById("nomeAluno").value = alunoObj.nome;
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
-    document.getElementById("observacoesAluno").value = alunoObj.observacoes || "";
+    document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
+    
+    const prontAluno = prontuarioGeral.filter(p => String(p.aluno_id) === String(id));
+    document.getElementById("observacoesAluno").value = prontAluno.length > 0 ? prontAluno[0].descricao : "";
+
     document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
     document.getElementById("alunoAtivo").checked = alunoObj.ativo;
 
