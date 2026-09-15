@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (REVISTAS INDIVIDUAIS NO CADASTRO)
+   EBD MANAGER - SUPABASE (REVISTAS COM DATAS E MÉTRICAS)
    ========================================================= */
 
 let supabaseClient = null;
@@ -43,7 +43,9 @@ async function carregarDadosDoBanco() {
                 ativo: a.ativo === true || a.ativo === null || a.ativo === undefined ? true : false,
                 observacoes: a.observacoes || '',
                 statusRevista: a.status_revista || 'nao_entregue',
-                temaRevista: a.tema_revista || ''
+                temaRevista: a.tema_revista || '',
+                dataEntregaRevista: a.data_entrega_revista || '',
+                dataPagamentoRevista: a.data_pagamento_revista || ''
             }))
         }));
 
@@ -76,6 +78,9 @@ async function carregarDadosDoBanco() {
 
         if (!document.getElementById("telaAlunosGeral").classList.contains("hidden")) {
             renderizarTabelaAlunosGeral();
+        }
+        if (!document.getElementById("dashboardMetricas").classList.contains("hidden")) {
+            calcularRelatorioPeriodo();
         }
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -295,10 +300,12 @@ function renderizarTabelaAlunosGeral() {
         const temAlerta = aluno.faltasRecentes > 2;
         const classeLinha = temAlerta ? "alerta-faltas" : "";
 
-        // Rótulo da revista
         let badgeRevista = '<span class="badge-inativo">Sem Revista</span>';
-        if (aluno.statusRevista === 'entregue_pago') badgeRevista = '<span class="badge-ativo">📖 Revista: Pago</span>';
-        else if (aluno.statusRevista === 'entregue_devendo') badgeRevista = '<span class="badge-alerta">📖 Revista: Devendo</span>';
+        if (aluno.statusRevista === 'entregue_pago') {
+            badgeRevista = `<span class="badge-ativo" title="Entregue: ${formatarData(aluno.dataEntregaRevista)} | Pago: ${formatarData(aluno.dataPagamentoRevista)}">📖 Pago (${formatarData(aluno.dataPagamentoRevista)})</span>`;
+        } else if (aluno.statusRevista === 'entregue_devendo') {
+            badgeRevista = `<span class="badge-alerta" title="Entregue em: ${formatarData(aluno.dataEntregaRevista)}">📖 Devendo (Entregue: ${formatarData(aluno.dataEntregaRevista)})</span>`;
+        }
 
         tbody.innerHTML += `
             <tr class="${classeLinha}">
@@ -546,6 +553,8 @@ function abrirModalAluno() {
     document.getElementById("observacoesAluno").value = "";
     document.getElementById("statusRevistaAluno").value = "nao_entregue";
     document.getElementById("temaRevistaAluno").value = "";
+    document.getElementById("dataEntregaRevista").value = "";
+    document.getElementById("dataPagamentoRevista").value = "";
     document.getElementById("ehProfessor").checked = false;
     document.getElementById("alunoAtivo").checked = true;
 
@@ -570,6 +579,8 @@ async function salvarAluno() {
     const observacoes = document.getElementById("observacoesAluno").value.trim();
     const statusRevista = document.getElementById("statusRevistaAluno").value;
     const temaRevista = document.getElementById("temaRevistaAluno").value.trim();
+    const dataEntrega = document.getElementById("dataEntregaRevista").value;
+    const dataPagamento = document.getElementById("dataPagamentoRevista").value;
     const classeId = document.getElementById("classeAluno").value;
     const ehProfessor = document.getElementById("ehProfessor").checked;
     const ativo = document.getElementById("alunoAtivo").checked;
@@ -583,6 +594,8 @@ async function salvarAluno() {
         observacoes,
         status_revista: statusRevista,
         tema_revista: temaRevista,
+        data_entrega_revista: dataEntrega || null,
+        data_pagamento_revista: dataPagamento || null,
         classe_id: classeId,
         eh_professor: ehProfessor,
         ativo
@@ -619,6 +632,8 @@ function editarAluno(id) {
     document.getElementById("observacoesAluno").value = alunoObj.observacoes || "";
     document.getElementById("statusRevistaAluno").value = alunoObj.statusRevista || "nao_entregue";
     document.getElementById("temaRevistaAluno").value = alunoObj.temaRevista || "";
+    document.getElementById("dataEntregaRevista").value = alunoObj.dataEntregaRevista || "";
+    document.getElementById("dataPagamentoRevista").value = alunoObj.dataPagamentoRevista || "";
     document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
     document.getElementById("alunoAtivo").checked = alunoObj.ativo;
 
@@ -821,6 +836,7 @@ function abrirDashboardMetricas() {
     esconderTodasTelas();
     document.getElementById("dashboardMetricas").classList.remove("hidden");
     mudarFiltroPeriodo();
+    calcularPrevisaoRevistas();
 }
 
 function mudarFiltroPeriodo() {
@@ -859,7 +875,7 @@ function calcularRelatorioPeriodo() {
         const matriculadosAtivos = c.alunos.filter(a => a.ativo).length;
         let pres = 0, aus = 0, vis = 0, ofe = 0;
 
-        aulasC.exec = aulasC.forEach(a => {
+        aulasC.forEach(a => {
             vis += Number(a.visitantes || 0);
             ofe += Number(a.oferta || 0);
             a.presencas.forEach(p => { if (p.status === "presente") pres++; else aus++; });
@@ -884,4 +900,32 @@ function calcularRelatorioPeriodo() {
     document.getElementById("geralAusentes").textContent = tAus;
     document.getElementById("geralVisitantes").textContent = tVis;
     document.getElementById("geralOfertas").textContent = formatarMoeda(tOfe);
+    
+    calcularPrevisaoRevistas();
+}
+
+function calcularPrevisaoRevistas() {
+    let totalAtivos = 0;
+    let entregues = 0;
+
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            if (a.ativo) {
+                totalAtivos++;
+                if (a.statusRevista === 'entregue_pago' || a.statusRevista === 'entregue_devendo') {
+                    entregues++;
+                }
+            }
+        });
+    });
+
+    const pendentes = totalAtivos - entregues;
+
+    const elTotal = document.getElementById("totalRevistasNecessarias");
+    const elEntregues = document.getElementById("totalRevistasEntregues");
+    const elPendentes = document.getElementById("totalRevistasPendentes");
+
+    if (elTotal) elTotal.textContent = totalAtivos;
+    if (elEntregues) elEntregues.textContent = entregues;
+    if (elPendentes) elPendentes.textContent = pendentes;
 }
