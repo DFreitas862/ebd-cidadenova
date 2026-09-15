@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EBD Manager</title>
+    <title>EBD Manager Pro</title>
 
     <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,7 +20,7 @@
             <div class="logo-icon">E</div>
             <div>
                 <strong>EBD Manager</strong>
-                <span>Gestão da Escola Bíblica</span>
+                <span>Gestão Profissional</span>
             </div>
         </div>
 
@@ -30,6 +30,9 @@
             </button>
             <button class="menu-item" onclick="abrirTelaAlunosGeral()">
                 <span>👥</span> Alunos Geral
+            </button>
+            <button class="menu-item" onclick="abrirDashboardFinancas()">
+                <span>💰</span> Finanças & ADM
             </button>
             <button class="menu-item" onclick="abrirDashboardMetricas()">
                 <span>▥</span> Métricas & Relatórios
@@ -44,12 +47,17 @@
 
         <div class="sidebar-footer">
             <span>EBD Manager</span>
-            <small>Sistema de gestão</small>
+            <small>Versão 2026 Pro</small>
         </div>
     </aside>
 
     <!-- CONTEÚDO -->
     <main class="main-content">
+
+        <!-- BOTÃO DE PRONTUÁRIO RÁPIDO NO TOPO ESQUERDO -->
+        <button class="btn-prontuario-top" onclick="abrirModalProntuarioRapido()">
+            <span>📋</span> + Prontuário Rápido (Lançamento)
+        </button>
 
         <!-- DASHBOARD GERAL -->
         <section id="dashboard">
@@ -57,19 +65,18 @@
                 <div>
                     <span class="eyebrow">VISÃO GERAL</span>
                     <h1>Dashboard</h1>
-                    <p>Acompanhe o movimento da sua EBD.</p>
+                    <p>Acompanhe o movimento e as atividades da sua EBD.</p>
                 </div>
                 <div class="header-actions">
-                    <button class="btn btn-light" onclick="abrirTelaAlunosGeral()">👥 Alunos Geral</button>
-                    <button class="btn btn-light" onclick="abrirDashboardMetricas()">📊 Métricas & Relatórios</button>
+                    <button class="btn btn-light" onclick="abrirTelaAlunosGeral()">👥 Alunos</button>
                     <button class="btn btn-primary" onclick="abrirModalAluno()">+ Aluno</button>
                     <button class="btn btn-secondary" onclick="abrirModalClasse()">+ Nova Classe</button>
                 </div>
             </div>
 
-            <div class="date-filter">
-                <label>Ver informações do dia</label>
-                <input type="date" id="dataDashboard" onchange="atualizarDashboard()">
+            <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px;">
+                <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Ver informações do dia:</label>
+                <input type="date" id="dataDashboard" onchange="atualizarDashboard()" style="max-width:250px;">
             </div>
 
             <div class="stats-grid">
@@ -95,7 +102,7 @@
                 </div>
                 <div class="stat-card money">
                     <div class="stat-icon">R$</div>
-                    <div><span>Ofertas</span><strong id="totalOfertas">R$ 0,00</strong></div>
+                    <div><span>Ofertas do Dia</span><strong id="totalOfertas">R$ 0,00</strong></div>
                 </div>
             </div>
 
@@ -120,24 +127,24 @@
                 <div>
                     <span class="eyebrow">CADASTRO UNIFICADO</span>
                     <h1>Gerenciamento de Alunos</h1>
-                    <p>Visualize todos os alunos, status, observações, controle de revista e o ranking geral.</p>
+                    <p>Visualize todos os alunos, histórico de revistas, prontuário e ranking.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
+                    <button class="btn btn-secondary" onclick="imprimirEtiquetas()">🏷️ Imprimir Etiquetas</button>
+                    <button class="btn btn-light" onclick="imprimirFormularioCadastro()">📄 Imprimir Ficha Cadastro</button>
                     <button class="btn btn-primary" onclick="abrirModalAluno()">+ Novo Aluno</button>
                 </div>
             </div>
 
             <div class="panel">
-                <div class="panel-header">
-                    <h2>Filtros e Busca</h2>
-                </div>
-                <div class="report-filters">
-                    <div class="form-group" style="flex: 2;">
+                <div class="panel-header"><h2>Filtros e Busca</h2></div>
+                <div class="form-grid">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label>Pesquisar por nome</label>
-                        <input type="text" id="buscaAlunoGeral" placeholder="Digite o nome do aluno..." oninput="filtrarAlunosGeral()">
+                        <input type="text" id="buscaAlunoGeral" placeholder="Digite o nome..." oninput="filtrarAlunosGeral()">
                     </div>
-                    <div class="form-group" style="flex: 1;">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label>Filtrar por Status</label>
                         <select id="filtroStatusAluno" onchange="filtrarAlunosGeral()">
                             <option value="todos" selected>Todos</option>
@@ -151,10 +158,7 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div>
-                        <span class="eyebrow">LISTAGEM</span>
-                        <h2>Todos os Alunos</h2>
-                    </div>
+                    <div><span class="eyebrow">LISTAGEM</span><h2>Todos os Alunos</h2></div>
                 </div>
                 <div class="table-responsive">
                     <table class="report-table">
@@ -164,7 +168,7 @@
                                 <th>Classe</th>
                                 <th>Telefone</th>
                                 <th>Status / Revista</th>
-                                <th>Observações</th>
+                                <th>Prontuário / Obs.</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
@@ -175,13 +179,59 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div>
-                        <span class="eyebrow">FREQUÊNCIA GERAL</span>
-                        <h2>Ranking Geral da EBD</h2>
-                        <p>Alunos mais assíduos de toda a escola dominical.</p>
-                    </div>
+                    <div><span class="eyebrow">FREQUÊNCIA GERAL</span><h2>Ranking Geral da EBD</h2></div>
                 </div>
                 <div id="rankingGeralEbd" class="ranking-list"></div>
+            </div>
+        </section>
+
+        <!-- NOVA ABA: FINANÇAS & ADM -->
+        <section id="telaFinancas" class="hidden">
+            <div class="page-header">
+                <div>
+                    <span class="eyebrow">GESTÃO FINANCEIRA</span>
+                    <h1>Caixa & ADM da EBD</h1>
+                    <p>Controle entradas de ofertas, pagamentos de revistas e despesas gerais da escola.</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
+                    <button class="btn btn-success" onclick="abrirModalNovaDespesa()">+ Nova Despesa / Receita</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card money">
+                    <div class="stat-icon">💰</div>
+                    <div><span>Saldo Atual em Caixa</span><strong id="finSaldoCaixa">R$ 0,00</strong></div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-icon">📥</div>
+                    <div><span>Total de Entradas</span><strong id="finTotalEntradas">R$ 0,00</strong></div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-icon">📤</div>
+                    <div><span>Total de Saídas / Despesas</span><strong id="finTotalSaidas">R$ 0,00</strong></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div><span class="eyebrow">HISTÓRICO</span><h2>Lançamentos do Caixa</h2></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Tipo</th>
+                                <th>Categoria</th>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaFinancas"></tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -191,7 +241,7 @@
                 <div>
                     <span class="eyebrow">DESEMPENHO</span>
                     <h1>Métricas e Relatórios da EBD</h1>
-                    <p>Acompanhe relatórios detalhados por período e desempenho.</p>
+                    <p>Acompanhe relatórios detalhados por período e previsão trimestral de revistas.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
@@ -200,8 +250,8 @@
 
             <div class="panel">
                 <div class="panel-header"><h2>Filtrar Relatório</h2></div>
-                <div class="report-filters">
-                    <div class="form-group">
+                <div class="form-grid">
+                    <div class="form-group" style="margin-bottom:0;">
                         <label>Período</label>
                         <select id="filtroPeriodo" onchange="mudarFiltroPeriodo()">
                             <option value="dia">Dia Específico</option>
@@ -210,7 +260,7 @@
                             <option value="trimestre">Este Trimestre</option>
                         </select>
                     </div>
-                    <div class="form-group" id="grupoDataEspecifica">
+                    <div class="form-group" id="grupoDataEspecifica" style="margin-bottom:0;">
                         <label>Data de Referência</label>
                         <input type="date" id="dataRelatorio" onchange="calcularMetricas()">
                     </div>
@@ -223,7 +273,6 @@
                     <div>
                         <span class="eyebrow">PLANEJAMENTO TRIMESTRAL</span>
                         <h2>Previsão de Encomenda de Revistas</h2>
-                        <p>Quantidade total de revistas ativas necessárias para o próximo trimestre com base nos alunos ativos.</p>
                     </div>
                 </div>
                 <div class="stats-grid" style="margin-bottom: 0;">
@@ -259,16 +308,6 @@
                             </tr>
                         </thead>
                         <tbody id="tabelaRelatorioClasses"></tbody>
-                        <tfoot>
-                            <tr class="table-total-row">
-                                <td><strong>TOTAL GERAL</strong></td>
-                                <td id="geralMatriculados">0</td>
-                                <td id="geralPresentes">0</td>
-                                <td id="geralAusentes">0</td>
-                                <td id="geralVisitantes">0</td>
-                                <td id="geralOfertas">R$ 0,00</td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -276,7 +315,7 @@
 
         <!-- DASHBOARD DA CLASSE -->
         <section id="telaClasse" class="hidden class-dashboard">
-            <div class="class-dashboard-header">
+            <div class="class-dashboard-header page-header">
                 <div>
                     <button class="btn btn-light" onclick="voltarDashboard()">← Voltar</button>
                     <span class="eyebrow">CLASSE</span>
@@ -287,7 +326,7 @@
                     <button class="btn btn-primary" onclick="abrirModalAlunoClasseAtual()">+ Aluno</button>
                     <button class="btn btn-light" onclick="abrirHistorico()">Histórico</button>
                     <button class="btn btn-secondary" onclick="abrirNovaAula()">+ Nova Aula</button>
-                    <button class="btn btn-danger" onclick="excluirClasseAtual()">🗑️ Excluir Classe</button>
+                    <button class="btn btn-danger" onclick="excluirClasseAtual()">🗑️ Excluir</button>
                 </div>
             </div>
 
@@ -326,7 +365,6 @@
                 </div>
             </div>
 
-            <!-- RANKING DA CLASSE -->
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">FREQUÊNCIA</span><h2>Ranking da classe</h2></div>
@@ -334,7 +372,6 @@
                 <div id="rankingAlunos" class="ranking-list"></div>
             </div>
 
-            <!-- AULAS RECENTES -->
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">AULAS</span><h2>Aulas recentes</h2></div>
@@ -411,6 +448,114 @@
         </section>
     </main>
 
+    <!-- MODAL PRONTUÁRIO RÁPIDO (LANÇAMENTO INTELIGENTE) -->
+    <div id="modalProntuario" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div><span class="eyebrow">PRONTUÁRIO MÉDICO / GERAL</span><h2>Novo Lançamento Rápido</h2></div>
+                <button class="modal-close" onclick="fecharModalProntuario()">×</button>
+            </div>
+            <div class="form-group">
+                <label>Selecionar Aluno</label>
+                <select id="prontuarioAlunoId">
+                    <option value="">Selecione o aluno...</option>
+                </select>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Tipo de Evento</label>
+                    <select id="prontuarioTipo" onchange="verificarTipoProntuario()">
+                        <option value="revista">📖 Revista (Entrega / Pagamento)</option>
+                        <option value="visita">🏠 Visita Pastoral</option>
+                        <option value="anotacao">💬 Anotação / Observação</option>
+                        <option value="outros">📌 Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data</label>
+                    <input type="date" id="prontuarioData">
+                </div>
+            </div>
+
+            <div id="blocoDetalhesRevista" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 16px;">
+                <div class="form-grid">
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <label>Status da Revista</label>
+                        <select id="prontuarioStatusRevista">
+                            <option value="entregue_pago">✓ Entregue e Pago</option>
+                            <option value="entregue_devendo">⚠️ Entregue (Devendo)</option>
+                            <option value="nao_entregue">❌ Não Entregue</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <label>Valor da Revista (R$)</label>
+                        <input type="number" id="prontuarioValor" step="0.01" value="0.00">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Tema / Trimestre</label>
+                    <input type="text" id="prontuarioTemaRevista" placeholder="Ex.: 3º Trimestre 2026">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Descrição / Anotações do Prontuário</label>
+                <textarea id="prontuarioDescricao" rows="3" placeholder="Descreva os detalhes do atendimento ou visita..."></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-light" onclick="fecharModalProntuario()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarProntuarioRapido()">Salvar no Prontuário</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL NOVA DESPESA / RECEITA (FINANÇAS) -->
+    <div id="modalDespesa" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div><span class="eyebrow">CAIXA ADM</span><h2>Novo Lançamento Financeiro</h2></div>
+                <button class="modal-close" onclick="fecharModalDespesa()">×</button>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select id="finTipoMov">
+                        <option value="receita">📥 Receita (Entrada)</option>
+                        <option value="despesa" selected>📤 Despesa (Saída)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Categoria</label>
+                    <select id="finCategoria">
+                        <option value="Material/Revista">Material / Revista</option>
+                        <option value="Manutenção">Manutenção / Limpeza</option>
+                        <option value="Lanche/Comunhão">Lanche / Comunhão</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Valor (R$)</label>
+                    <input type="number" id="finValor" step="0.01" placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label>Data</label>
+                    <input type="date" id="finData">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Descrição</label>
+                <input type="text" id="finDescricao" placeholder="Ex.: Compra de copos descartáveis">
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-light" onclick="fecharModalDespesa()">Cancelar</button>
+                <button class="btn btn-success" onclick="salvarLancamentoFinanceiro()">Salvar Lançamento</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL CLASSE -->
     <div id="modalClasse" class="modal hidden">
         <div class="modal-content">
@@ -474,42 +619,17 @@
                     <option value="">Selecione a classe</option>
                 </select>
             </div>
-
-            <!-- CONTROLE DE REVISTA INDIVIDUAL NO CADASTRO -->
-            <div class="form-grid" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
-                <div class="form-group" style="margin-bottom:8px;">
-                    <label>Situação da Revista</label>
-                    <select id="statusRevistaAluno">
-                        <option value="nao_entregue">❌ Não Entregue</option>
-                        <option value="entregue_devendo">⚠️ Entregue (Devendo)</option>
-                        <option value="entregue_pago">✓ Entregue e Pago</option>
-                    </select>
-                </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                    <label>Trimestre / Tema</label>
-                    <input type="text" id="temaRevistaAluno" placeholder="Ex.: 3º Trimestre 2026">
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Data que Pegou (Entrega)</label>
-                    <input type="date" id="dataEntregaRevista">
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Data que Pagou</label>
-                    <input type="date" id="dataPagamentoRevista">
-                </div>
-            </div>
-
             <div class="form-group">
-                <label>Observações / Histórico (Ex.: Fazer visita, Já visitou, Mudou de igreja)</label>
-                <textarea id="observacoesAluno" rows="3" placeholder="Digite notas ou tags importantes sobre o aluno..."></textarea>
+                <label>Observações / Histórico de Visitas</label>
+                <textarea id="observacoesAluno" rows="3" placeholder="Notas importantes..."></textarea>
             </div>
-            <label class="checkbox-field">
+            <label class="checkbox-field" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:0.9rem;">
                 <input type="checkbox" id="ehProfessor">
-                <span>Este aluno também é professor (Disponível para dar aula em qualquer classe)</span>
+                <span>Este aluno também é professor</span>
             </label>
-            <label class="checkbox-field">
+            <label class="checkbox-field" style="display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:0.9rem;">
                 <input type="checkbox" id="alunoAtivo" checked>
-                <span>Aluno Ativo (Desmarque se estiver inativo/afastado)</span>
+                <span>Aluno Ativo</span>
             </label>
             <div class="form-actions">
                 <button class="btn btn-light" onclick="fecharModalAluno()">Cancelar</button>
@@ -519,6 +639,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
