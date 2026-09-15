@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER - SUPABASE (ALUNOS GERAL, RANKING E FALTAS)
+   EBD MANAGER - SUPABASE (VERSÃO CORRIGIDA)
    ========================================================= */
 
 let supabaseClient = null;
@@ -73,7 +73,13 @@ async function carregarDadosDoBanco() {
         revistas = dadosRevistas || [];
 
         atualizarDashboard();
-        if (classeAtual) mostrarDadosClasse();
+        
+        // Se estiver dentro de uma classe, atualiza os dados dela em tempo real
+        if (classeAtual) {
+            classeAtual = obterClasse(classeAtual.id);
+            mostrarDadosClasse();
+        }
+
         if (!document.getElementById("telaAlunosGeral").classList.contains("hidden")) {
             renderizarTabelaAlunosGeral();
         }
@@ -470,7 +476,6 @@ function mostrarDadosClasse() {
 
     mostrarControleRevistas();
     mostrarRankingClasse();
-    mostrarAlunosClasse();
     mostrarAulasClasse();
 }
 
@@ -580,7 +585,7 @@ async function excluirTemaRevista(tema) {
 }
 
 /* =========================================================
-   RANKING DA CLASSE & ALUNOS
+   RANKING DA CLASSE
    ========================================================= */
 function mostrarRankingClasse() {
     const container = document.getElementById("rankingAlunos");
@@ -618,40 +623,6 @@ function mostrarRankingClasse() {
                 <div>
                     <div class="frequency-bar"><div style="width: ${item.freq}%"></div></div>
                     <div class="ranking-number" style="margin-top:5px"><strong>${item.freq.toFixed(1)}%</strong></div>
-                </div>
-            </div>
-        `;
-    });
-}
-
-function mostrarAlunosClasse() {
-    const container = document.getElementById("alunosClasse");
-    if (!container || !classeAtual) return;
-    container.innerHTML = "";
-
-    if (classeAtual.alunos.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum aluno cadastrado.</div>`;
-        return;
-    }
-
-    classeAtual.alunos.forEach(aluno => {
-        const iniciais = aluno.nome.split(" ").slice(0, 2).map(n => n.charAt(0).toUpperCase()).join("");
-        container.innerHTML += `
-            <div class="student-item">
-                <div class="student-info">
-                    <div class="student-avatar">${iniciais}</div>
-                    <div>
-                        <strong>${aluno.nome}</strong>
-                        <span>
-                            ${aluno.ehProfessor ? "Professor" : "Aluno"}
-                            ${aluno.telefone ? " • " + aluno.telefone : ""}
-                            ${!aluno.ativo ? ' • <span class="badge-inativo">Inativo</span>' : ''}
-                            ${aluno.observacoes ? '<br>Obs: ' + aluno.observacoes : ''}
-                        </span>
-                    </div>
-                </div>
-                <div class="student-actions">
-                    <button class="icon-button" onclick="editarAluno('${aluno.id}')" title="Editar aluno">✎</button>
                 </div>
             </div>
         `;
