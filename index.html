@@ -120,7 +120,7 @@
                 <div>
                     <span class="eyebrow">CADASTRO UNIFICADO</span>
                     <h1>Gerenciamento de Alunos</h1>
-                    <p>Visualize todos os alunos, status, observações e o ranking geral da EBD.</p>
+                    <p>Visualize todos os alunos, status, observações, controle de revista e o ranking geral.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
@@ -163,7 +163,7 @@
                                 <th>Nome</th>
                                 <th>Classe</th>
                                 <th>Telefone</th>
-                                <th>Status</th>
+                                <th>Status / Revista</th>
                                 <th>Observações</th>
                                 <th>Ações</th>
                             </tr>
@@ -249,7 +249,7 @@
             </div>
         </section>
 
-        <!-- DASHBOARD DA CLASSE -->
+        <!-- DASHBOARD DA CLASSE (AGORA LIMPO: APENAS RANKING E AULAS) -->
         <section id="telaClasse" class="hidden class-dashboard">
             <div class="class-dashboard-header">
                 <div>
@@ -299,24 +299,6 @@
                     <div class="stat-icon">%</div>
                     <div><span>Frequência</span><strong id="classeFrequencia">0%</strong></div>
                 </div>
-            </div>
-
-            <!-- CONTROLE DE REVISTAS -->
-            <div class="panel">
-                <div class="panel-header">
-                    <div>
-                        <span class="eyebrow">MATERIAIS</span>
-                        <h2>Controle de Revistas</h2>
-                        <p>Adicione o tema da revista para registrar pedidos, entregas e pagamentos.</p>
-                    </div>
-                </div>
-                <div class="revista-control-box">
-                    <div class="form-group" style="flex: 1;">
-                        <input type="text" id="inputTemaRevista" placeholder="Ex.: A Supremacia de Cristo (Trimestre Atual)">
-                    </div>
-                    <button class="btn btn-secondary" onclick="adicionarTemaRevista()">+ Adicionar Tema</button>
-                </div>
-                <div id="listaControleRevistas" class="revista-list-container"></div>
             </div>
 
             <!-- RANKING DA CLASSE -->
@@ -440,7 +422,7 @@
         </div>
     </div>
 
-    <!-- MODAL ALUNO -->
+    <!-- MODAL ALUNO (COM CONTROLE DE REVISTA INDIVIDUAL) -->
     <div id="modalAluno" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -467,6 +449,23 @@
                     <option value="">Selecione a classe</option>
                 </select>
             </div>
+
+            <!-- CONTROLE DE REVISTA NO CADASTRO -->
+            <div class="form-grid" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Situação da Revista</label>
+                    <select id="statusRevistaAluno">
+                        <option value="entregue_pago">✓ Entregue e Pago</option>
+                        <option value="entregue_devendo">⚠️ Entregue (Devendo)</option>
+                        <option value="nao_entregue">❌ Não Entregue</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Trimestre / Tema da Revista</label>
+                    <input type="text" id="temaRevistaAluno" placeholder="Ex.: 3º Trimestre 2026">
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Observações / Histórico (Ex.: Fazer visita, Já visitou, Mudou de igreja)</label>
                 <textarea id="observacoesAluno" rows="3" placeholder="Digite notas ou tags importantes sobre o aluno..."></textarea>
@@ -486,8 +485,7 @@
         </div>
     </div>
 
-    <!-- Scripts carregados na ordem correta -->
     <script src="config.js"></script>
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=3"></script>
 </body>
 </html>
