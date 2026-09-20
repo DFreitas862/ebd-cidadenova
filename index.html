@@ -8,7 +8,7 @@
 
     <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Chart.js para os gráficos do Dashboard -->
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <link rel="stylesheet" href="style.css">
@@ -43,7 +43,7 @@
                 <span>＋</span> Nova Classe
             </button>
             <button class="menu-item" onclick="abrirModalAluno()">
-                <span>♙</span> Novo Aluno
+                <span>♙</span> Novo Matriculado
             </button>
         </nav>
 
@@ -56,7 +56,6 @@
     <!-- CONTEÚDO -->
     <main class="main-content">
 
-        <!-- BOTÃO DE PRONTUÁRIO RÁPIDO NO TOPO ESQUERDO -->
         <button class="btn-prontuario-top" onclick="abrirModalProntuarioRapido()">
             <span>📋</span> + Prontuário Rápido (Lançamento)
         </button>
@@ -67,31 +66,18 @@
                 <div>
                     <span class="eyebrow">VISÃO GERAL</span>
                     <h1>Dashboard</h1>
-                    <p>Acompanhe o movimento, gráficos por período e as atividades da sua EBD.</p>
+                    <p>Acompanhe o comparativo entre as classes, movimento e finanças.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="abrirTelaMatriculados()">👥 Matriculados</button>
-                    <button class="btn btn-primary" onclick="abrirModalAluno()">+ Aluno</button>
+                    <button class="btn btn-primary" onclick="abrirModalAluno()">+ Matriculado</button>
                     <button class="btn btn-secondary" onclick="abrirModalClasse()">+ Nova Classe</button>
                 </div>
             </div>
 
-            <!-- FILTRO DE PERÍODO COM BOTÃO -->
             <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px;">
-                <label style="font-weight:600; font-size:0.85rem; margin-bottom:8px; display:block;">Filtrar informações por Período:</label>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-                    <div>
-                        <span style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">De:</span>
-                        <input type="date" id="dataInicioDash" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
-                    </div>
-                    <div>
-                        <span style="font-size: 0.8rem; color: var(--text-muted); display:block; margin-bottom:4px;">Até:</span>
-                        <input type="date" id="dataFimDash" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
-                    </div>
-                    <div>
-                        <button class="btn btn-primary" onclick="atualizarDashboard()" style="padding: 9px 18px;">🔍 Filtrar Período</button>
-                    </div>
-                </div>
+                <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Ver informações do dia:</label>
+                <input type="date" id="dataDashboard" onchange="atualizarDashboard()" style="max-width:250px;">
             </div>
 
             <div class="stats-grid">
@@ -105,43 +91,40 @@
                 </div>
                 <div class="stat-card success">
                     <div class="stat-icon">✓</div>
-                    <div><span>Presenças (Período)</span><strong id="totalPresencas">0</strong></div>
+                    <div><span>Presenças</span><strong id="totalPresencas">0</strong></div>
                 </div>
                 <div class="stat-card danger">
                     <div class="stat-icon">×</div>
-                    <div><span>Ausentes (Período)</span><strong id="totalAusentes">0</strong></div>
+                    <div><span>Ausentes</span><strong id="totalAusentes">0</strong></div>
                 </div>
                 <div class="stat-card warning">
                     <div class="stat-icon">★</div>
-                    <div><span>Visitantes (Período)</span><strong id="totalVisitantes">0</strong></div>
+                    <div><span>Visitantes</span><strong id="totalVisitantes">0</strong></div>
                 </div>
                 <div class="stat-card money">
                     <div class="stat-icon">R$</div>
-                    <div><span>Ofertas (Período)</span><strong id="totalOfertas">R$ 0,00</strong></div>
+                    <div><span>Ofertas do Dia</span><strong id="totalOfertas">R$ 0,00</strong></div>
                 </div>
             </div>
 
-            <!-- GRÁFICOS NO DASHBOARD -->
+            <!-- GRÁFICOS COMPARATIVOS POR CLASSE -->
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">ANÁLISE</span><h2>Gráficos de Desempenho e Ofertas</h2></div>
+                    <div><span class="eyebrow">COMPARATIVO</span><h2>Desempenho por Classe</h2></div>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
-                        <canvas id="graficoPresencaPeriodo"></canvas>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:300px; position:relative;">
+                        <canvas id="graficoComparativoAlunos"></canvas>
                     </div>
-                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
-                        <canvas id="graficoOfertasPeriodo"></canvas>
-                    </div>
-                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
-                        <canvas id="graficoAlunosStatus"></canvas>
+                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:300px; position:relative;">
+                        <canvas id="graficoComparativoOfertas"></canvas>
                     </div>
                 </div>
             </div>
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">RESUMO</span><h2>Resumo do Período</h2></div>
+                    <div><span class="eyebrow">RESUMO</span><h2>Movimento do dia</h2></div>
                 </div>
                 <div id="resumoDoDia" class="daily-summary"></div>
             </div>
@@ -160,13 +143,12 @@
                 <div>
                     <span class="eyebrow">CADASTRO UNIFICADO</span>
                     <h1>Matriculados</h1>
-                    <p>Visualize todos os matriculados, histórico e status de frequência.</p>
+                    <p>Gerencie todos os alunos ativos e inativos sem perder o histórico dos relatórios.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
                     <button class="btn btn-secondary" onclick="imprimirEtiquetas()">🏷️ Imprimir Etiquetas</button>
-                    <button class="btn btn-light" onclick="imprimirFormularioCadastro()">📄 Imprimir Ficha Cadastro</button>
-                    <button class="btn btn-primary" onclick="abrirModalAluno()">+ Novo Aluno</button>
+                    <button class="btn btn-primary" onclick="abrirModalAluno()">+ Novo Matriculado</button>
                 </div>
             </div>
 
@@ -214,7 +196,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Nome</th>
-                                <th>Classe</th>
+                                <th>Classe Atual</th>
                                 <th>Telefone</th>
                                 <th>Status</th>
                                 <th>Prontuário / Obs.</th>
@@ -227,17 +209,17 @@
             </div>
         </section>
 
-        <!-- NOVA ABA: FINANÇAS & ADM -->
+        <!-- TELA FINANÇAS & ADM -->
         <section id="telaFinancas" class="hidden">
             <div class="page-header">
                 <div>
                     <span class="eyebrow">GESTÃO FINANCEIRA</span>
                     <h1>Caixa & ADM da EBD</h1>
-                    <p>Controle entradas de ofertas, pagamentos de revistas e despesas gerais da escola.</p>
+                    <p>Controle entradas de ofertas, revistas e despesas gerais com opção de exclusão.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
-                    <button class="btn btn-success" onclick="abrirModalNovaDespesa()">+ Nova Despesa / Receita</button>
+                    <button class="btn btn-success" onclick="abrirModalNovaDespesa()">+ Novo Lançamento</button>
                 </div>
             </div>
 
@@ -266,8 +248,8 @@
                             <tr>
                                 <th>Data</th>
                                 <th>Tipo</th>
-                                <th>Categoria / Aluno</th>
-                                <th>Descrição</th>
+                                <th>Categoria / Matriculado</th>
+                                <th>Descrição / Status</th>
                                 <th>Valor</th>
                                 <th>Ações</th>
                             </tr>
@@ -325,7 +307,7 @@
                     <p id="infoClasse">—</p>
                 </div>
                 <div class="header-actions">
-                    <button class="btn btn-primary" onclick="abrirModalAlunoClasseAtual()">+ Aluno</button>
+                    <button class="btn btn-primary" onclick="abrirModalAlunoClasseAtual()">+ Matriculado</button>
                     <button class="btn btn-light" onclick="abrirHistorico()">Histórico</button>
                     <button class="btn btn-secondary" onclick="abrirNovaAula()">+ Nova Aula</button>
                     <button class="btn btn-danger" onclick="excluirClasseAtual()">🗑️ Excluir</button>
@@ -369,7 +351,7 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">AULAS</span><h2>Aulas recentes</h2></div>
+                    <div><span class="eyebrow">AULAS</span><h2>Aulas recentes (com resumo completo)</h2></div>
                 </div>
                 <div id="aulasClasse"></div>
             </div>
@@ -517,17 +499,17 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Categoria (Matriculado / Descrição)</label>
+                    <label>Categoria</label>
                     <select id="finCategoria">
-                        <option value="Despesa Geral">Despesa Geral</option>
                         <option value="Material/Revista">Material / Revista</option>
                         <option value="Manutenção">Manutenção / Limpeza</option>
                         <option value="Lanche/Comunhão">Lanche / Comunhão</option>
+                        <option value="Outros">Outros</option>
                     </select>
                 </div>
             </div>
-            <div class="form-group" id="grupoSeletorAlunoFin">
-                <label>Selecionar Matriculado (Opcional p/ Revista)</label>
+            <div class="form-group">
+                <label>Vincular Matriculado (Opcional p/ Revista)</label>
                 <select id="finAlunoId">
                     <option value="">Nenhum / Geral</option>
                 </select>
@@ -543,8 +525,8 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Descrição / Status da Revista</label>
-                <input type="text" id="finDescricao" placeholder="Ex.: Revista Paga / Copos descartáveis">
+                <label>Descrição / Status</label>
+                <input type="text" id="finDescricao" placeholder="Ex.: Pagamento Revista / Copos descartáveis">
             </div>
             <div class="form-actions">
                 <button class="btn btn-light" onclick="fecharModalDespesa()">Cancelar</button>
@@ -636,6 +618,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=14"></script>
+    <script src="script.js?v=11"></script>
 </body>
 </html>
