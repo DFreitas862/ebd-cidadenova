@@ -8,6 +8,8 @@
 
     <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Chart.js para os gráficos do Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -28,8 +30,8 @@
             <button class="menu-item active" onclick="voltarDashboard()">
                 <span>⌂</span> Dashboard
             </button>
-            <button class="menu-item" onclick="abrirTelaAlunosGeral()">
-                <span>👥</span> Alunos Geral
+            <button class="menu-item" onclick="abrirTelaMatriculados()">
+                <span>👥</span> Matriculados
             </button>
             <button class="menu-item" onclick="abrirDashboardFinancas()">
                 <span>💰</span> Finanças & ADM
@@ -65,10 +67,10 @@
                 <div>
                     <span class="eyebrow">VISÃO GERAL</span>
                     <h1>Dashboard</h1>
-                    <p>Acompanhe o movimento e as atividades da sua EBD.</p>
+                    <p>Acompanhe o movimento, gráficos e as atividades da sua EBD.</p>
                 </div>
                 <div class="header-actions">
-                    <button class="btn btn-light" onclick="abrirTelaAlunosGeral()">👥 Alunos</button>
+                    <button class="btn btn-light" onclick="abrirTelaMatriculados()">👥 Matriculados</button>
                     <button class="btn btn-primary" onclick="abrirModalAluno()">+ Aluno</button>
                     <button class="btn btn-secondary" onclick="abrirModalClasse()">+ Nova Classe</button>
                 </div>
@@ -84,9 +86,9 @@
                     <div class="stat-icon">▦</div>
                     <div><span>Classes</span><strong id="totalClasses">0</strong></div>
                 </div>
-                <div class="stat-card" onclick="abrirTelaAlunosGeral()" style="cursor: pointer;">
+                <div class="stat-card" onclick="abrirTelaMatriculados()" style="cursor: pointer;">
                     <div class="stat-icon">👥</div>
-                    <div><span>Alunos Ativos</span><strong id="totalAlunos">0</strong></div>
+                    <div><span>Total Matrículas (Ativos)</span><strong id="totalAlunos">0</strong></div>
                 </div>
                 <div class="stat-card success">
                     <div class="stat-icon">✓</div>
@@ -106,6 +108,21 @@
                 </div>
             </div>
 
+            <!-- GRÁFICOS NO DASHBOARD -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div><span class="eyebrow">ANÁLISE</span><h2>Gráficos de Desempenho</h2></div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
+                        <canvas id="graficoPresencaDia"></canvas>
+                    </div>
+                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
+                        <canvas id="graficoAlunosStatus"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">RESUMO</span><h2>Movimento do dia</h2></div>
@@ -121,13 +138,13 @@
             </div>
         </section>
 
-        <!-- TELA GERAL DE ALUNOS -->
-        <section id="telaAlunosGeral" class="hidden">
+        <!-- TELA MATRICULADOS (Antigo Alunos Geral) -->
+        <section id="telaMatriculados" class="hidden">
             <div class="page-header">
                 <div>
                     <span class="eyebrow">CADASTRO UNIFICADO</span>
-                    <h1>Gerenciamento de Alunos</h1>
-                    <p>Visualize todos os alunos, histórico de revistas, prontuário e ranking.</p>
+                    <h1>Matriculados</h1>
+                    <p>Visualize todos os matriculados, histórico e status de frequência.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
@@ -137,20 +154,36 @@
                 </div>
             </div>
 
+            <!-- MINI DASHBOARD DE MATRICULADOS -->
+            <div class="stats-grid" style="margin-bottom: 20px;">
+                <div class="stat-card success">
+                    <div class="stat-icon">✓</div>
+                    <div><span>Ativos</span><strong id="dashMatriculadosAtivos">0</strong></div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-icon">×</div>
+                    <div><span>Inativos</span><strong id="dashMatriculadosInativos">0</strong></div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-icon">⚠️</div>
+                    <div><span>Precisam de Atenção (>2 Faltas)</span><strong id="dashMatriculadosAtencao">0</strong></div>
+                </div>
+            </div>
+
             <div class="panel">
                 <div class="panel-header"><h2>Filtros e Busca</h2></div>
                 <div class="form-grid">
                     <div class="form-group" style="margin-bottom:0;">
                         <label>Pesquisar por nome</label>
-                        <input type="text" id="buscaAlunoGeral" placeholder="Digite o nome..." oninput="filtrarAlunosGeral()">
+                        <input type="text" id="buscaAlunoGeral" placeholder="Digite o nome..." oninput="filtrarMatriculados()">
                     </div>
                     <div class="form-group" style="margin-bottom:0;">
                         <label>Filtrar por Status</label>
-                        <select id="filtroStatusAluno" onchange="filtrarAlunosGeral()">
+                        <select id="filtroStatusAluno" onchange="filtrarMatriculados()">
                             <option value="todos" selected>Todos</option>
                             <option value="ativos">Apenas Ativos</option>
                             <option value="inativos">Apenas Inativos</option>
-                            <option value="faltosos">⚠️ Alerta (> 2 Faltas)</option>
+                            <option value="faltosos">⚠️ Precisam de Atenção (> 2 Faltas)</option>
                         </select>
                     </div>
                 </div>
@@ -158,21 +191,22 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">LISTAGEM</span><h2>Todos os Alunos</h2></div>
+                    <div><span class="eyebrow">LISTAGEM</span><h2>Lista de Matriculados</h2></div>
                 </div>
                 <div class="table-responsive">
                     <table class="report-table">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Nome</th>
                                 <th>Classe</th>
                                 <th>Telefone</th>
-                                <th>Status / Revista</th>
+                                <th>Status</th>
                                 <th>Prontuário / Obs.</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
-                        <tbody id="tabelaAlunosGeral"></tbody>
+                        <tbody id="tabelaMatriculados"></tbody>
                     </table>
                 </div>
             </div>
@@ -217,9 +251,10 @@
                             <tr>
                                 <th>Data</th>
                                 <th>Tipo</th>
-                                <th>Categoria</th>
+                                <th>Categoria / Aluno</th>
                                 <th>Descrição</th>
                                 <th>Valor</th>
+                                <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody id="tabelaFinancas"></tbody>
@@ -251,7 +286,7 @@
                 <div class="stats-grid" style="margin-bottom: 0;">
                     <div class="stat-card">
                         <div class="stat-icon">📖</div>
-                        <div><span>Total de Alunos Ativos (Demanda)</span><strong id="totalRevistasNecessarias">0</strong></div>
+                        <div><span>Total de Matriculados Ativos (Demanda)</span><strong id="totalRevistasNecessarias">0</strong></div>
                     </div>
                     <div class="stat-card success">
                         <div class="stat-icon">✓</div>
@@ -289,7 +324,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">👥</div>
-                    <div><span>Alunos Ativos</span><strong id="classeTotalAlunos">0</strong></div>
+                    <div><span>Matriculados na Classe</span><strong id="classeTotalAlunos">0</strong></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">📚</div>
@@ -366,7 +401,7 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">PRESENÇA</span><h2>Chamada (Alunos Ativos)</h2></div>
+                    <div><span class="eyebrow">PRESENÇA</span><h2>Chamada (Matriculados Ativos)</h2></div>
                     <div id="contadorPresenca" style="font-weight: bold; color: var(--primary-light);">0 presentes</div>
                 </div>
                 <div id="listaChamada" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
@@ -399,10 +434,8 @@
                 <button class="modal-close" onclick="fecharModalProntuario()">×</button>
             </div>
             <div class="form-group">
-                <label>Selecionar Aluno</label>
-                <select id="prontuarioAlunoId">
-                    <option value="">Selecione o aluno...</option>
-                </select>
+                <label>Selecionar Matriculado</label>
+                <select id="prontuarioAlunoId" onchange="aoSelecionarAlunoProntuario()"></select>
             </div>
             <div class="form-grid">
                 <div class="form-group">
@@ -432,7 +465,7 @@
                     </div>
                     <div class="form-group" style="margin-bottom:8px;">
                         <label>Valor da Revista (R$)</label>
-                        <input type="number" id="prontuarioValor" step="0.01" value="0.00">
+                        <input type="number" id="prontuarioValor" step="0.01" value="15.00">
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
@@ -453,7 +486,7 @@
         </div>
     </div>
 
-    <!-- MODAL NOVA DESPESA / RECEITA -->
+    <!-- MODAL NOVA DESPESA / RECEITA / REVISTA (ADM) -->
     <div id="modalDespesa" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -469,14 +502,20 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Categoria</label>
+                    <label>Categoria (Matriculado / Descrição)</label>
                     <select id="finCategoria">
+                        <option value="Despesa Geral">Despesa Geral</option>
                         <option value="Material/Revista">Material / Revista</option>
                         <option value="Manutenção">Manutenção / Limpeza</option>
                         <option value="Lanche/Comunhão">Lanche / Comunhão</option>
-                        <option value="Outros">Outros</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-group" id="grupoSeletorAlunoFin">
+                <label>Selecionar Matriculado (Opcional p/ Revista)</label>
+                <select id="finAlunoId">
+                    <option value="">Nenhum / Geral</option>
+                </select>
             </div>
             <div class="form-grid">
                 <div class="form-group">
@@ -489,8 +528,8 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Descrição</label>
-                <input type="text" id="finDescricao" placeholder="Ex.: Compra de copos descartáveis">
+                <label>Descrição / Status da Revista</label>
+                <input type="text" id="finDescricao" placeholder="Ex.: Revista Paga / Copos descartáveis">
             </div>
             <div class="form-actions">
                 <button class="btn btn-light" onclick="fecharModalDespesa()">Cancelar</button>
@@ -539,12 +578,12 @@
     <div id="modalAluno" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <div><span class="eyebrow">CADASTRO DE ALUNO</span><h2 id="tituloModalAluno">Novo Aluno</h2></div>
+                <div><span class="eyebrow">CADASTRO DE MATRICULADO</span><h2 id="tituloModalAluno">Novo Matriculado</h2></div>
                 <button class="modal-close" onclick="fecharModalAluno()">×</button>
             </div>
             <div class="form-group">
                 <label>Nome completo</label>
-                <input type="text" id="nomeAluno" placeholder="Nome do aluno">
+                <input type="text" id="nomeAluno" placeholder="Nome do matriculado">
             </div>
             <div class="form-grid">
                 <div class="form-group">
@@ -568,20 +607,20 @@
             </div>
             <label class="checkbox-field" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:0.9rem;">
                 <input type="checkbox" id="ehProfessor">
-                <span>Este aluno também é professor</span>
+                <span>Este matriculado também é professor</span>
             </label>
             <label class="checkbox-field" style="display:flex; align-items:center; gap:8px; margin-bottom:16px; font-size:0.9rem;">
                 <input type="checkbox" id="alunoAtivo" checked>
-                <span>Aluno Ativo</span>
+                <span>Matriculado Ativo</span>
             </label>
             <div class="form-actions">
                 <button class="btn btn-light" onclick="fecharModalAluno()">Cancelar</button>
-                <button class="btn btn-primary" onclick="salvarAluno()">Salvar Aluno</button>
+                <button class="btn btn-primary" onclick="salvarAluno()">Salvar Matriculado</button>
             </div>
         </div>
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=9"></script>
+    <script src="script.js?v=10"></script>
 </body>
 </html>
