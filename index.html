@@ -399,9 +399,21 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">PRESENÇA</span><h2>Chamada (Matriculados Ativos)</h2></div>
+                    <div><span class="eyebrow">PRESENÇA</span><h2>Chamada</h2></div>
                     <div id="contadorPresenca" style="font-weight: bold; color: var(--primary-light);">0 presentes</div>
                 </div>
+
+                <!-- ADICIONAR ALUNO EXTERNO/OUTRA CLASSE NA CHAMADA -->
+                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 220px;">
+                        <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Adicionar aluno de outra classe nesta aula:</label>
+                        <select id="selectAlunoExtra" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);">
+                            <option value="">Selecione um aluno para incluir...</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="adicionarAlunoExtraNaChamada()" style="margin-top: 18px; padding: 8px 14px;">+ Incluir na Chamada</button>
+                </div>
+
                 <div id="listaChamada" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"></div>
                 <div class="form-actions">
                     <button class="btn btn-light" onclick="voltarClasse()">Cancelar</button>
@@ -619,6 +631,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=12"></script>
+    <script src="script.js?v=13"></script>
 </body>
 </html>
