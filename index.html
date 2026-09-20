@@ -75,9 +75,17 @@
                 </div>
             </div>
 
-            <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px;">
-                <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Selecionar Período / Data de Análise:</label>
-                <input type="date" id="dataDashboard" onchange="atualizarDashboard()" style="max-width:250px;">
+            <!-- SELETOR DE PERÍODO (DATA INICIAL, FINAL E BOTÃO) -->
+            <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Data Inicial:</label>
+                    <input type="date" id="dataInicioDashboard" style="width:180px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Data Final:</label>
+                    <input type="date" id="dataFimDashboard" style="width:180px;">
+                </div>
+                <button class="btn btn-primary" onclick="atualizarDashboard()" style="height: 38px; padding: 0 20px;">🔍 Filtrar Período</button>
             </div>
 
             <div class="stats-grid">
@@ -107,6 +115,7 @@
                 </div>
             </div>
 
+            <!-- GRÁFICOS COMPARATIVOS POR CLASSE -->
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">COMPARATIVO</span><h2>Desempenho por Classe</h2></div>
@@ -628,6 +637,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=14"></script>
+    <script src="script.js?v=15"></script>
 </body>
 </html>
