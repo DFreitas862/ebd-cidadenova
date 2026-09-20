@@ -9,6 +9,7 @@ let financas = [];
 let prontuarioGeral = [];
 
 let classeAtual = null;
+let aulaEditandoId = null;
 let alunoEditando = null;
 let graficoCompAlunosInstancia = null;
 let graficoCompOfertasInstancia = null;
@@ -148,10 +149,10 @@ function mostrarEstatisticasDashboard() {
     classes.forEach(c => { totalAlunosAtivos += c.alunos.filter(a => a.ativo).length; });
 
     const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+    const aulasDoPeriodo = aulas.filter(a => a.data === dataSel);
 
     let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
-    aulasDoDia.forEach(a => {
+    aulasDoPeriodo.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
@@ -169,22 +170,22 @@ function mostrarResumoDoDia() {
     const container = document.getElementById("resumoDoDia");
     if (!container) return;
     const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+    const aulasDoPeriodo = aulas.filter(a => a.data === dataSel);
 
-    if (aulasDoDia.length === 0) {
+    if (aulasDoPeriodo.length === 0) {
         container.innerHTML = `<div class="daily-summary-card"><span>Aulas</span><strong>0</strong></div><div class="daily-summary-card"><span>Presenças</span><strong>0</strong></div><div class="daily-summary-card"><span>Visitantes</span><strong>0</strong></div><div class="daily-summary-card"><span>Ofertas</span><strong>R$ 0,00</strong></div>`;
         return;
     }
 
     let presencas = 0, visitantes = 0, ofertas = 0;
-    aulasDoDia.forEach(a => {
+    aulasDoPeriodo.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
     });
 
     container.innerHTML = `
-        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasDoDia.length}</strong></div>
+        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasDoPeriodo.length}</strong></div>
         <div class="daily-summary-card"><span>Presenças</span><strong>${presencas}</strong></div>
         <div class="daily-summary-card"><span>Visitantes</span><strong>${visitantes}</strong></div>
         <div class="daily-summary-card"><span>Ofertas</span><strong>${formatarMoeda(ofertas)}</strong></div>
@@ -229,8 +230,6 @@ function mostrarClasses() {
 
 function renderizarGraficosComparativosPorClasse() {
     const nomesClasses = classes.map(c => c.nome);
-    
-    // Soma de ofertas e quantidade de alunos matriculados por classe para o comparativo
     const dadosAlunosClasse = classes.map(c => c.alunos.filter(a => a.ativo).length);
     const dadosOfertasClasse = classes.map(c => {
         let somaOfertas = 0;
@@ -239,7 +238,6 @@ function renderizarGraficosComparativosPorClasse() {
         return somaOfertas;
     });
 
-    // Gráfico 1: Matriculados Ativos por Classe
     const ctx1 = document.getElementById('graficoComparativoAlunos');
     if (ctx1) {
         if (graficoCompAlunosInstancia) graficoCompAlunosInstancia.destroy();
@@ -253,7 +251,6 @@ function renderizarGraficosComparativosPorClasse() {
         });
     }
 
-    // Gráfico 2: Total de Ofertas por Classe
     const ctx2 = document.getElementById('graficoComparativoOfertas');
     if (ctx2) {
         if (graficoCompOfertasInstancia) graficoCompOfertasInstancia.destroy();
@@ -351,7 +348,7 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   PRONTUÁRIO & FINANÇAS & CLASSE COM RESUMO DE AULAS
+   PRONTUÁRIO & FINANÇAS (LANÇAMENTO POR CLASSE)
    ========================================================= */
 function abrirModalProntuarioRapido() {
     const select = document.getElementById("prontuarioAlunoId");
@@ -454,23 +451,27 @@ function renderizarTelaFinancas() {
 
     let totalEntradas = 0;
     let totalSaidas = 0;
-    let totalOfertasAulas = 0;
-    aulas.forEach(a => { totalOfertasAulas += Number(a.oferta || 0); });
 
-    totalEntradas += totalOfertasAulas;
-
+    // Adiciona as ofertas automáticas de cada classe separadamente no financeiro
     let listaCompleta = [...financas];
-    if (totalOfertasAulas > 0) {
-        listaCompleta.push({
-            id: 'auto-oferta',
-            data_movimento: obterHoje(),
-            tipo_movimento: 'receita',
-            categoria: 'Oferta de Escola Dominical (Automática)',
-            descricao: 'Soma total acumulada das ofertas das aulas registradas',
-            valor: totalOfertasAulas,
-            automatico: true
-        });
-    }
+
+    classes.forEach(c => {
+        let somaOfertasClasse = 0;
+        const aulasC = aulas.filter(a => String(a.classeId) === String(c.id));
+        aulasC.forEach(a => somaOfertasClasse += Number(a.oferta || 0));
+
+        if (somaOfertasClasse > 0) {
+            listaCompleta.push({
+                id: `auto-oferta-${c.id}`,
+                data_movimento: obterHoje(),
+                tipo_movimento: 'receita',
+                categoria: `Oferta - ${c.nome}`,
+                descricao: 'Soma acumulada das ofertas desta classe',
+                valor: somaOfertasClasse,
+                automatico: true
+            });
+        }
+    });
 
     listaCompleta.sort((a, b) => b.data_movimento.localeCompare(a.data_movimento));
 
@@ -500,12 +501,10 @@ function renderizarTelaFinancas() {
 }
 
 function abrirModalNovaDespesa() {
-    const selAluno = document.getElementById("finAlunoId");
-    selAluno.innerHTML = `<option value="">Nenhum / Geral</option>`;
+    const selClasse = document.getElementById("finClasseId");
+    selClasse.innerHTML = `<option value="">Nenhuma / Geral</option>`;
     classes.forEach(c => {
-        c.alunos.forEach(a => {
-            selAluno.innerHTML += `<option value="${a.id}">${a.nome} (${c.nome})</option>`;
-        });
+        selClasse.innerHTML += `<option value="${c.id}">Oferta - ${c.nome}</option>`;
     });
 
     document.getElementById("finValor").value = "";
@@ -522,17 +521,16 @@ async function salvarLancamentoFinanceiro() {
     if (!supabaseClient) return;
     const tipo = document.getElementById("finTipoMov").value;
     let categoria = document.getElementById("finCategoria").value;
-    const alunoId = document.getElementById("finAlunoId").value;
+    const classeId = document.getElementById("finClasseId").value;
     const valor = Number(document.getElementById("finValor").value || 0);
     const data = document.getElementById("finData").value;
     const descricao = document.getElementById("finDescricao").value.trim();
 
     if (!valor || !descricao) { alert("Preencha o valor e a descrição."); return; }
 
-    if (alunoId) {
-        let nomeAluno = "";
-        classes.forEach(c => { c.alunos.forEach(a => { if (a.id === alunoId) nomeAluno = a.nome; }); });
-        categoria = `${nomeAluno} - Revista`;
+    if (classeId) {
+        const classeObj = obterClasse(classeId);
+        if (classeObj) categoria = `Oferta - ${classeObj.nome}`;
     }
 
     const { error } = await supabaseClient.from('financeiro_caixa').insert([{
@@ -561,7 +559,7 @@ async function excluirLancamentoFinanceiro(id) {
 }
 
 /* =========================================================
-   AULAS, CLASSE E RESUMO DETALHADO POR AULA
+   AULAS, CLASSE E EDIÇÃO DE AULA
    ========================================================= */
 function abrirClasse(id) {
     const c = obterClasse(id);
@@ -612,17 +610,22 @@ function mostrarDadosClasse() {
             let freqAula = (pAula + aAula) > 0 ? Math.round((pAula / (pAula + aAula)) * 100) : 0;
 
             containerAulas.innerHTML += `
-                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                        <strong>${formatarData(a.data)} - Tema: ${a.tema || 'Sem tema'}</strong>
-                        <span style="font-size:0.85rem; color:var(--primary-light); font-weight:bold;">Freq: ${freqAula}%</span>
+                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <div style="display:flex; gap:10px; align-items:center; margin-bottom:4px;">
+                            <strong>${formatarData(a.data)} - Tema: ${a.tema || 'Sem tema'}</strong>
+                            <span style="font-size:0.8rem; color:var(--primary-light); font-weight:bold;">Freq: ${freqAula}%</span>
+                        </div>
+                        <div style="font-size:0.85rem; color:var(--text-muted); display:flex; gap:12px; flex-wrap:wrap;">
+                            <div>Matriculados: <strong>${totalMatDia}</strong></div>
+                            <div>Presentes: <strong style="color:var(--success);">${pAula}</strong></div>
+                            <div>Ausentes: <strong style="color:var(--danger);">${aAula}</strong></div>
+                            <div>Visitantes: <strong>${a.visitantes}</strong></div>
+                            <div>Ofertório: <strong>${formatarMoeda(a.oferta)}</strong></div>
+                        </div>
                     </div>
-                    <div style="font-size:0.85rem; color:var(--text-muted); display:flex; gap:12px; flex-wrap:wrap;">
-                        <div>Matriculados: <strong>${totalMatDia}</strong></div>
-                        <div>Presentes: <strong style="color:var(--success);">${pAula}</strong></div>
-                        <div>Ausentes: <strong style="color:var(--danger);">${aAula}</strong></div>
-                        <div>Visitantes: <strong>${a.visitantes}</strong></div>
-                        <div>Ofertório: <strong>${formatarMoeda(a.oferta)}</strong></div>
+                    <div>
+                        <button class="btn btn-light" style="padding:6px 12px; font-size:0.8rem;" onclick="editarAula('${a.id}')">Editar Aula</button>
                     </div>
                 </div>
             `;
@@ -637,6 +640,7 @@ function voltarClasse() {
 
 function abrirNovaAula() {
     if (!classeAtual) return;
+    aulaEditandoId = null;
     esconderTodasTelas();
     document.getElementById("telaAula").classList.remove("hidden");
 
@@ -670,6 +674,54 @@ function abrirNovaAula() {
                 <div style="display:flex; gap:6px;">
                     <button type="button" class="btn btn-success btn-presenca active" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
                     <button type="button" class="btn btn-light btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
+                </div>
+            </div>
+        `;
+    });
+
+    atualizarContadorPresenca();
+}
+
+function editarAula(id) {
+    const aulaObj = aulas.find(a => String(a.id) === String(id));
+    if (!aulaObj) return;
+
+    aulaEditandoId = aulaObj.id;
+    esconderTodasTelas();
+    document.getElementById("telaAula").classList.remove("hidden");
+
+    document.getElementById("tituloAula").textContent = `Editar Aula - ${classeAtual.nome}`;
+    document.getElementById("dataAula").value = aulaObj.data;
+    document.getElementById("temaAula").value = aulaObj.tema || "";
+    document.getElementById("visitantesAula").value = aulaObj.visitantes || 0;
+    document.getElementById("ofertaAula").value = aulaObj.oferta || 0;
+
+    const selProf = document.getElementById("professorAula");
+    selProf.innerHTML = `<option value="">Selecione o professor</option>`;
+    classes.forEach(c => {
+        c.alunos.filter(a => a.ehProfessor && a.ativo).forEach(p => {
+            selProf.innerHTML += `<option value="${p.id}">${p.nome} (${c.nome})</option>`;
+        });
+    });
+    selProf.value = aulaObj.professorId || "";
+
+    const listaChamada = document.getElementById("listaChamada");
+    listaChamada.innerHTML = "";
+
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
+    alunosAtivos.forEach(aluno => {
+        const regPresenca = aulaObj.presencas.find(p => String(p.alunoId) === String(aluno.id));
+        const statusAtual = regPresenca ? regPresenca.status : 'presente';
+
+        const classePresenteBtn = statusAtual === 'presente' ? 'btn-success active' : 'btn-light';
+        const classeAusenteBtn = statusAtual === 'ausente' ? 'btn-danger active' : 'btn-light';
+
+        listaChamada.innerHTML += `
+            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
+                <span><strong>${aluno.nome}</strong></span>
+                <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn ${classePresenteBtn} btn-presenca" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
+                    <button type="button" class="btn ${classeAusenteBtn} btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
                 </div>
             </div>
         `;
@@ -717,20 +769,37 @@ async function salvarAula() {
 
     if (!data) { alert("Informe a data da aula."); return; }
 
-    const aulaId = gerarId();
+    let aulaIdFinal = aulaEditandoId;
 
-    const { error: errAula } = await supabaseClient.from('aulas').insert([{
-        id: aulaId,
-        classe_id: classeAtual.id,
-        data,
-        tema,
-        professor_id: professorId,
-        visitantes,
-        oferta
-    }]);
+    if (aulaEditandoId) {
+        // Atualiza aula existente
+        await supabaseClient.from('aulas').update({
+            data,
+            tema,
+            professor_id: professorId,
+            visitantes,
+            oferta
+        }).eq('id', aulaEditandoId);
 
-    if (errAula) { alert("Erro ao salvar aula."); return; }
+        // Remove presenças antigas para reinserir as atualizadas
+        await supabaseClient.from('presencas').delete().eq('aula_id', aulaEditandoId);
+    } else {
+        // Cria nova aula
+        aulaIdFinal = gerarId();
+        const { error: errAula } = await supabaseClient.from('aulas').insert([{
+            id: aulaIdFinal,
+            classe_id: classeAtual.id,
+            data,
+            tema,
+            professor_id: professorId,
+            visitantes,
+            oferta
+        }]);
 
+        if (errAula) { alert("Erro ao salvar aula."); return; }
+    }
+
+    // Salva as presenças
     const itens = document.querySelectorAll("#listaChamada .attendance-item");
     for (let item of itens) {
         const alunoId = item.getAttribute("data-aluno-id");
@@ -738,20 +807,9 @@ async function salvarAula() {
 
         await supabaseClient.from('presencas').insert([{
             id: gerarId(),
-            aula_id: aulaId,
+            aula_id: aulaIdFinal,
             aluno_id: alunoId,
             status
-        }]);
-    }
-
-    if (oferta > 0) {
-        await supabaseClient.from('financeiro_caixa').insert([{
-            id: gerarId(),
-            tipo_movimento: 'receita',
-            categoria: 'Oferta de Escola Dominical',
-            descricao: `Oferta da Aula (${classeAtual.nome} - ${formatarData(data)})`,
-            valor: oferta,
-            data_movimento: data
         }]);
     }
 
