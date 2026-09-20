@@ -15,17 +15,24 @@ let graficoCompAlunosInstancia = null;
 let graficoCompOfertasInstancia = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-    const data = document.getElementById("dataDashboard");
-    if (data) data.value = obterHoje();
+    const hojeStr = obterHoje();
+    
+    const dataInicio = document.getElementById("dataInicioDashboard");
+    const dataFim = document.getElementById("dataFimDashboard");
+    
+    if (dataInicio && dataFim) {
+        dataInicio.value = hojeStr;
+        dataFim.value = hojeStr;
+    }
 
     const dataRel = document.getElementById("dataRelatorio");
-    if (dataRel) dataRel.value = obterHoje();
+    if (dataRel) dataRel.value = hojeStr;
 
     const finData = document.getElementById("finData");
-    if (finData) finData.value = obterHoje();
+    if (finData) finData.value = hojeStr;
 
     const pData = document.getElementById("prontuarioData");
-    if (pData) pData.value = obterHoje();
+    if (pData) pData.value = hojeStr;
 
     if (window.supabase && typeof SUPABASE_URL !== 'undefined') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -139,7 +146,7 @@ function voltarDashboard() {
 
 function atualizarDashboard() {
     mostrarEstatisticasDashboard();
-    mostrarResumoDoDia();
+    mostrarResumoDoPeriodo();
     mostrarClasses();
     renderizarGraficosComparativosPorClasse();
 }
@@ -148,8 +155,9 @@ function mostrarEstatisticasDashboard() {
     let totalAlunosAtivos = 0;
     classes.forEach(c => { totalAlunosAtivos += c.alunos.filter(a => a.ativo).length; });
 
-    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoPeriodo = aulas.filter(a => a.data === dataSel);
+    const ini = document.getElementById("dataInicioDashboard")?.value || obterHoje();
+    const fim = document.getElementById("dataFimDashboard")?.value || obterHoje();
+    const aulasDoPeriodo = aulas.filter(a => a.data >= ini && a.data <= fim);
 
     let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
     aulasDoPeriodo.forEach(a => {
@@ -166,11 +174,13 @@ function mostrarEstatisticasDashboard() {
     document.getElementById("totalOfertas").textContent = formatarMoeda(ofertas);
 }
 
-function mostrarResumoDoDia() {
+function mostrarResumoDoPeriodo() {
     const container = document.getElementById("resumoDoDia");
     if (!container) return;
-    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoPeriodo = aulas.filter(a => a.data === dataSel);
+
+    const ini = document.getElementById("dataInicioDashboard")?.value || obterHoje();
+    const fim = document.getElementById("dataFimDashboard")?.value || obterHoje();
+    const aulasDoPeriodo = aulas.filter(a => a.data >= ini && a.data <= fim);
 
     if (aulasDoPeriodo.length === 0) {
         container.innerHTML = `<div class="daily-summary-card"><span>Aulas</span><strong>0</strong></div><div class="daily-summary-card"><span>Presenças</span><strong>0</strong></div><div class="daily-summary-card"><span>Visitantes</span><strong>0</strong></div><div class="daily-summary-card"><span>Ofertas</span><strong>R$ 0,00</strong></div>`;
@@ -348,7 +358,7 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   PRONTUÁRIO & FINANÇAS (OFERTAS INDIVIDUAIS POR AULA)
+   PRONTUÁRIO & FINANÇAS (OFERTAS POR AULA INDIVIDUAL)
    ========================================================= */
 function abrirModalProntuarioRapido() {
     const select = document.getElementById("prontuarioAlunoId");
@@ -454,7 +464,7 @@ function renderizarTelaFinancas() {
 
     let listaCompleta = [...financas];
 
-    // Aqui geramos um lançamento individual de oferta para cada aula registrada de cada classe
+    // Gera um lançamento de oferta individual para cada aula registrada
     aulas.forEach(a => {
         if (Number(a.oferta || 0) > 0) {
             const classeObj = obterClasse(a.classeId);
