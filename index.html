@@ -75,7 +75,6 @@
                 </div>
             </div>
 
-            <!-- SELETOR DE PERÍODO / DATA NO DASHBOARD -->
             <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px;">
                 <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Selecionar Período / Data de Análise:</label>
                 <input type="date" id="dataDashboard" onchange="atualizarDashboard()" style="max-width:250px;">
@@ -108,7 +107,6 @@
                 </div>
             </div>
 
-            <!-- GRÁFICOS COMPARATIVOS POR CLASSE -->
             <div class="panel">
                 <div class="panel-header">
                     <div><span class="eyebrow">COMPARATIVO</span><h2>Desempenho por Classe</h2></div>
@@ -216,7 +214,7 @@
                 <div>
                     <span class="eyebrow">GESTÃO FINANCEIRA</span>
                     <h1>Caixa & ADM da EBD</h1>
-                    <p>Controle entradas de ofertas lançadas por classe, revistas e despesas gerais.</p>
+                    <p>Controle entradas de ofertas lançadas por aula/classe, revistas e despesas gerais.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="voltarDashboard()">← Dashboard</button>
@@ -250,7 +248,7 @@
                                 <th>Data</th>
                                 <th>Tipo</th>
                                 <th>Categoria / Classe</th>
-                                <th>Descrição / Status</th>
+                                <th>Descrição / Aula</th>
                                 <th>Valor</th>
                                 <th>Ações</th>
                             </tr>
@@ -403,7 +401,6 @@
                     <div id="contadorPresenca" style="font-weight: bold; color: var(--primary-light);">0 presentes</div>
                 </div>
 
-                <!-- ADICIONAR ALUNO EXTERNO/OUTRA CLASSE NA CHAMADA -->
                 <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 220px;">
                         <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Adicionar aluno de outra classe nesta aula:</label>
@@ -631,6 +628,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=13"></script>
+    <script src="script.js?v=14"></script>
 </body>
 </html>
