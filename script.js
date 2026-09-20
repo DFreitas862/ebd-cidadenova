@@ -348,7 +348,7 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   PRONTUÁRIO & FINANÇAS
+   PRONTUÁRIO & FINANÇAS (OFERTAS INDIVIDUAIS POR AULA)
    ========================================================= */
 function abrirModalProntuarioRapido() {
     const select = document.getElementById("prontuarioAlunoId");
@@ -454,19 +454,19 @@ function renderizarTelaFinancas() {
 
     let listaCompleta = [...financas];
 
-    classes.forEach(c => {
-        let somaOfertasClasse = 0;
-        const aulasC = aulas.filter(a => String(a.classeId) === String(c.id));
-        aulasC.forEach(a => somaOfertasClasse += Number(a.oferta || 0));
+    // Aqui geramos um lançamento individual de oferta para cada aula registrada de cada classe
+    aulas.forEach(a => {
+        if (Number(a.oferta || 0) > 0) {
+            const classeObj = obterClasse(a.classeId);
+            const nomeClasseStr = classeObj ? classeObj.nome : 'Classe';
 
-        if (somaOfertasClasse > 0) {
             listaCompleta.push({
-                id: `auto-oferta-${c.id}`,
-                data_movimento: obterHoje(),
+                id: `auto-aula-oferta-${a.id}`,
+                data_movimento: a.data,
                 tipo_movimento: 'receita',
-                categoria: `Oferta - ${c.nome}`,
-                descricao: 'Soma acumulada das ofertas desta classe',
-                valor: somaOfertasClasse,
+                categoria: `Oferta - ${nomeClasseStr}`,
+                descricao: `Oferta da Aula (${a.tema || 'Sem tema'})`,
+                valor: Number(a.oferta),
                 automatico: true
             });
         }
@@ -679,7 +679,6 @@ function carregarSeletorAlunosExtras() {
     const selectExtra = document.getElementById("selectAlunoExtra");
     if (!selectExtra) return;
     
-    // Mantém o cabeçalho padrão e popula com todos os alunos ativos de todas as classes
     selectExtra.innerHTML = `<option value="">Selecione um aluno de outra classe para incluir...</option>`;
     
     classes.forEach(c => {
