@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT UNIFICADO COMPLETO
+   EBD MANAGER PRO - SCRIPT COMPLETO ATUALIZADO
    ========================================================= */
 
 let supabaseClient = null;
@@ -10,6 +10,8 @@ let prontuarioGeral = [];
 
 let classeAtual = null;
 let alunoEditando = null;
+let graficoPresencaInstancia = null;
+let graficoStatusInstancia = null;
 
 document.addEventListener("DOMContentLoaded", () => {
     const data = document.getElementById("dataDashboard");
@@ -81,8 +83,8 @@ async function carregarDadosDoBanco() {
             mostrarDadosClasse();
         }
 
-        if (!document.getElementById("telaAlunosGeral").classList.contains("hidden")) {
-            renderizarTabelaAlunosGeral();
+        if (!document.getElementById("telaMatriculados").classList.contains("hidden")) {
+            renderizarTabelaMatriculados();
         }
         if (!document.getElementById("telaFinancas").classList.contains("hidden")) {
             renderizarTelaFinancas();
@@ -120,7 +122,7 @@ function obterClasse(id) {
 }
 
 function esconderTodasTelas() {
-    const telas = ["dashboard", "telaAlunosGeral", "telaFinancas", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"];
+    const telas = ["dashboard", "telaMatriculados", "telaFinancas", "dashboardMetricas", "telaClasse", "telaAula", "telaHistorico"];
     telas.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add("hidden");
@@ -138,6 +140,7 @@ function atualizarDashboard() {
     mostrarEstatisticasDashboard();
     mostrarResumoDoDia();
     mostrarClasses();
+    renderizarGraficosDashboard();
 }
 
 function mostrarEstatisticasDashboard() {
@@ -201,6 +204,7 @@ function mostrarClasses() {
     classes.forEach(c => {
         const aulasC = aulas.filter(a => String(a.classeId) === String(c.id));
         const ativos = c.alunos.filter(a => a.ativo).length;
+        const totalMatriculadosClasse = c.alunos.length;
         let presencas = 0;
         aulasC.forEach(a => a.presencas.forEach(p => { if (p.status === "presente") presencas++; }));
 
@@ -212,7 +216,8 @@ function mostrarClasses() {
                         <div style="font-size:0.85rem; color:var(--text-muted);">${c.dia} • ${c.horario}</div>
                     </div>
                 </div>
-                <div class="class-card-stats" style="display:flex; gap:15px; margin-top:12px; font-size:0.85rem;">
+                <div class="class-card-stats" style="display:flex; gap:15px; margin-top:12px; font-size:0.85rem; flex-wrap:wrap;">
+                    <div>Total Matriculados: <strong>${totalMatriculadosClasse}</strong></div>
                     <div>Ativos: <strong>${ativos}</strong></div>
                     <div>Aulas: <strong>${aulasC.length}</strong></div>
                     <div>Presenças: <strong>${presencas}</strong></div>
@@ -222,8 +227,353 @@ function mostrarClasses() {
     });
 }
 
+function renderizarGraficosDashboard() {
+    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
+    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+
+    let presencasDia = 0, ausenciasDia = 0;
+    aulasDoDia.forEach(a => {
+        a.presencas.forEach(p => {
+            if (p.status === 'presente') presencasDia++;
+            else ausenciasDia++;
+        });
+    });
+
+    let totalAtivos = 0, totalInativos = 0;
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            if (a.ativo) totalAtivos++;
+            else totalInativos++;
+        });
+    });
+
+    // Gráfico de Presenças do Dia
+    const ctx1 = document.getElementById('graficoPresencaDia');
+    if (ctx1) {
+        if (graficoPresencaInstancia) graficoPresencaInstancia.destroy();
+        graficoPresencaInstancia = new Chart(ctx1, {
+            type: 'doughnut',
+            data: {
+                labels: ['Presentes', 'Ausentes'],
+                datasets: [{ data: [presencasDia, ausenciasDia], backgroundColor: ['#10b981', '#ef4444'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Presenças vs Ausências (Data Selecionada)' } } }
+        });
+    }
+
+    // Gráfico de Alunos Ativos vs Inativos
+    const ctx2 = document.getElementById('graficoAlunosStatus');
+    if (ctx2) {
+        if (graficoStatusInstancia) graficoStatusInstancia.destroy();
+        graficoStatusInstancia = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: ['Ativos', 'Inativos'],
+                datasets: [{ label: 'Matriculados', data: [totalAtivos, totalInativos], backgroundColor: ['#2563eb', '#64748b'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Status Geral de Matriculados' } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+}
+
 /* =========================================================
-   GERENCIAMENTO DE AULAS & CHAMADA
+   TELA MATRICULADOS
+   ========================================================= */
+function abrirTelaMatriculados() {
+    esconderTodasTelas();
+    document.getElementById("telaMatriculados").classList.remove("hidden");
+    renderizarTabelaMatriculados();
+}
+
+function calcularFaltasConsecutivasOuTotal(alunoId) {
+    const aulasOrdenadas = [...aulas].sort((a, b) => b.data.localeCompare(a.data));
+    let faltas = 0;
+    for (let aula of aulasOrdenadas) {
+        const reg = aula.presencas.find(p => String(p.alunoId) === String(alunoId));
+        if (reg) {
+            if (reg.status === "ausente") faltas++;
+            else break;
+        }
+    }
+    return faltas;
+}
+
+function renderizarTabelaMatriculados() {
+    const tbody = document.getElementById("tabelaMatriculados");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const busca = document.getElementById("buscaAlunoGeral")?.value.toLowerCase() || "";
+    const statusFiltro = document.getElementById("filtroStatusAluno")?.value || "todos";
+
+    let lista = [];
+    classes.forEach(c => {
+        if (c.alunos) {
+            c.alunos.forEach(a => {
+                const faltas = calcularFaltasConsecutivasOuTotal(a.id);
+                const ativos = a.ativo === true || a.ativo === null || a.ativo === undefined;
+                lista.push({ ...a, nomeClasse: c.nome, faltasRecentes: faltas, ativo: ativos });
+            });
+        }
+    });
+
+    let totalAtivos = lista.filter(a => a.ativo).length;
+    let totalInativos = lista.filter(a => !a.ativo).length;
+    let totalAtencao = lista.filter(a => a.ativo && a.faltasRecentes > 2).length;
+
+    document.getElementById("dashMatriculadosAtivos").textContent = totalAtivos;
+    document.getElementById("dashMatriculadosInativos").textContent = totalInativos;
+    document.getElementById("dashMatriculadosAtencao").textContent = totalAtencao;
+
+    lista = lista.filter(a => {
+        if (!(a.nome || "").toLowerCase().includes(busca)) return false;
+        if (statusFiltro === "ativos") return a.ativo === true;
+        if (statusFiltro === "inativos") return a.ativo === false;
+        if (statusFiltro === "faltosos") return a.ativo === true && a.faltasRecentes > 2;
+        return true;
+    });
+
+    if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Nenhum matriculado encontrado.</td></tr>`;
+        return;
+    }
+
+    lista.forEach((aluno, index) => {
+        const prontAluno = prontuarioGeral.filter(p => String(p.aluno_id) === String(aluno.id));
+        const ultimaObs = prontAluno.length > 0 ? prontAluno[0].descricao : 'Nenhuma nota.';
+
+        tbody.innerHTML += `
+            <tr>
+                <td><strong>${index + 1}</strong></td>
+                <td><strong>${aluno.nome}</strong> ${aluno.ehProfessor ? '<small style="color:var(--primary-light)">(Prof.)</small>' : ''}</td>
+                <td>${aluno.nomeClasse}</td>
+                <td>${aluno.telefone || '-'}</td>
+                <td>${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'} ${aluno.faltasRecentes > 2 ? '<span class="badge-alerta">⚠️ Atenção</span>' : ''}</td>
+                <td><span style="font-size:0.85rem; color:var(--text-muted);">${ultimaObs}</span></td>
+                <td><button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAluno('${aluno.id}')">Editar</button></td>
+            </tr>
+        `;
+    });
+}
+
+function filtrarMatriculados() { renderizarTabelaMatriculados(); }
+
+/* =========================================================
+   PRONTUÁRIO RÁPIDO & FINANÇAS
+   ========================================================= */
+function abrirModalProntuarioRapido() {
+    const select = document.getElementById("prontuarioAlunoId");
+    select.innerHTML = `<option value="">Selecione o matriculado...</option>`;
+    
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            select.innerHTML += `<option value="${a.id}">${a.nome} (${c.nome})</option>`;
+        });
+    });
+
+    document.getElementById("prontuarioTipo").value = "revista";
+    document.getElementById("prontuarioData").value = obterHoje();
+    document.getElementById("prontuarioStatusRevista").value = "entregue_pago";
+    document.getElementById("prontuarioValor").value = "15.00";
+    document.getElementById("prontuarioTemaRevista").value = "";
+    document.getElementById("prontuarioDescricao").value = "";
+    verificarTipoProntuario();
+
+    document.getElementById("modalProntuario").classList.remove("hidden");
+}
+
+function fecharModalProntuario() {
+    document.getElementById("modalProntuario").classList.add("hidden");
+}
+
+function verificarTipoProntuario() {
+    const tipo = document.getElementById("prontuarioTipo").value;
+    const blocoRevista = document.getElementById("blocoDetalhesRevista");
+    if (tipo === "revista") blocoRevista.style.display = "block";
+    else blocoRevista.style.display = "none";
+}
+
+function aoSelecionarAlunoProntuario() {
+    // Função auxiliar caso queira preencher dinâmico
+}
+
+async function salvarProntuarioRapido() {
+    if (!supabaseClient) return;
+    const alunoId = document.getElementById("prontuarioAlunoId").value;
+    const tipo = document.getElementById("prontuarioTipo").value;
+    const data = document.getElementById("prontuarioData").value;
+    const descricao = document.getElementById("prontuarioDescricao").value.trim();
+
+    if (!alunoId) { alert("Selecione um matriculado."); return; }
+
+    let valorMovimento = 0;
+    let descFinal = descricao;
+    let nomeAlunoCache = "";
+
+    classes.forEach(c => {
+        c.alunos.forEach(a => { if (a.id === alunoId) nomeAlunoCache = a.nome; });
+    });
+
+    if (tipo === "revista") {
+        const statusRev = document.getElementById("prontuarioStatusRevista").value;
+        const temaRev = document.getElementById("prontuarioTemaRevista").value.trim();
+        valorMovimento = Number(document.getElementById("prontuarioValor").value || 0);
+        descFinal = `Revista: ${temaRev || 'Trimestral'} - Status: ${statusRev}. ${descricao}`;
+
+        await supabaseClient.from('alunos').update({
+            status_revista: statusRev,
+            tema_revista: temaRev,
+            data_entrega_revista: data,
+            data_pagamento_revista: statusRev === 'entregue_pago' ? data : null
+        }).eq('id', alunoId);
+
+        if (valorMovimento > 0) {
+            await supabaseClient.from('financeiro_caixa').insert([{
+                id: gerarId(),
+                tipo_movimento: 'receita',
+                categoria: `${nomeAlunoCache} - Revista (${statusRev === 'entregue_pago' ? 'Paga' : 'Devendo'})`,
+                descricao: `Trimestre: ${temaRev || 'Atual'}`,
+                valor: valorMovimento,
+                data_movimento: data
+            }]);
+        }
+    }
+
+    await supabaseClient.from('prontuario_lancamentos').insert([{
+        id: gerarId(),
+        aluno_id: alunoId,
+        tipo,
+        descricao: descFinal,
+        valor: valorMovimento,
+        data_lancamento: data
+    }]);
+
+    fecharModalProntuario();
+    await carregarDadosDoBanco();
+    alert("Prontuário e lançamento financeiro salvos com sucesso!");
+}
+
+function abrirDashboardFinancas() {
+    esconderTodasTelas();
+    document.getElementById("telaFinancas").classList.remove("hidden");
+    renderizarTelaFinancas();
+}
+
+function renderizarTelaFinancas() {
+    const tbody = document.getElementById("tabelaFinancas");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    let totalOfertasAulas = 0;
+    aulas.forEach(a => { totalOfertasAulas += Number(a.oferta || 0); });
+
+    totalEntradas += totalOfertasAulas;
+
+    let listaCompleta = [...financas];
+    if (totalOfertasAulas > 0) {
+        listaCompleta.push({
+            id: 'auto-oferta',
+            data_movimento: obterHoje(),
+            tipo_movimento: 'receita',
+            categoria: 'Oferta de Escola Dominical',
+            descricao: 'Soma automática das ofertas das aulas',
+            valor: totalOfertasAulas,
+            automatico: true
+        });
+    }
+
+    listaCompleta.sort((a, b) => b.data_movimento.localeCompare(a.data_movimento));
+
+    listaCompleta.forEach(f => {
+        if (f.tipo_movimento === 'receita') totalEntradas += Number(f.valor || 0);
+        else totalSaidas += Number(f.valor || 0);
+
+        const badgeCor = f.tipo_movimento === 'receita' ? 'badge-ativo' : 'badge-inativo';
+        const botaoExcluir = f.automatico ? '-' : `<button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="excluirLancamentoFinanceiro('${f.id}')">Excluir</button>`;
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${formatarData(f.data_movimento)}</td>
+                <td><span class="${badgeCor}">${f.tipo_movimento.toUpperCase()}</span></td>
+                <td><strong>${f.categoria}</strong></td>
+                <td>${f.descricao}</td>
+                <td><strong>${formatarMoeda(f.valor)}</strong></td>
+                <td>${botaoExcluir}</td>
+            </tr>
+        `;
+    });
+
+    const saldo = totalEntradas - totalSaidas;
+    document.getElementById("finSaldoCaixa").textContent = formatarMoeda(saldo);
+    document.getElementById("finTotalEntradas").textContent = formatarMoeda(totalEntradas);
+    document.getElementById("finTotalSaidas").textContent = formatarMoeda(totalSaidas);
+}
+
+function abrirModalNovaDespesa() {
+    const selAluno = document.getElementById("finAlunoId");
+    selAluno.innerHTML = `<option value="">Nenhum / Geral</option>`;
+    classes.forEach(c => {
+        c.alunos.forEach(a => {
+            selAluno.innerHTML += `<option value="${a.id}">${a.nome} (${c.nome})</option>`;
+        });
+    });
+
+    document.getElementById("finValor").value = "";
+    document.getElementById("finDescricao").value = "";
+    document.getElementById("finData").value = obterHoje();
+    document.getElementById("modalDespesa").classList.remove("hidden");
+}
+
+function fecharModalDespesa() {
+    document.getElementById("modalDespesa").classList.add("hidden");
+}
+
+async function salvarLancamentoFinanceiro() {
+    if (!supabaseClient) return;
+    const tipo = document.getElementById("finTipoMov").value;
+    let categoria = document.getElementById("finCategoria").value;
+    const alunoId = document.getElementById("finAlunoId").value;
+    const valor = Number(document.getElementById("finValor").value || 0);
+    const data = document.getElementById("finData").value;
+    const descricao = document.getElementById("finDescricao").value.trim();
+
+    if (!valor || !descricao) { alert("Preencha o valor e a descrição."); return; }
+
+    if (alunoId) {
+        let nomeAluno = "";
+        classes.forEach(c => { c.alunos.forEach(a => { if (a.id === alunoId) nomeAluno = a.nome; }); });
+        categoria = `${nomeAluno} - Revista`;
+    }
+
+    const { error } = await supabaseClient.from('financeiro_caixa').insert([{
+        id: gerarId(),
+        tipo_movimento: tipo,
+        categoria,
+        descricao,
+        valor,
+        data_movimento: data
+    }]);
+
+    if (error) { alert("Erro ao salvar lançamento."); return; }
+
+    fecharModalDespesa();
+    await carregarDadosDoBanco();
+}
+
+async function excluirLancamentoFinanceiro(id) {
+    if (!supabaseClient) return;
+    if (!confirm("Deseja realmente excluir este lançamento financeiro?")) return;
+
+    const { error } = await supabaseClient.from('financeiro_caixa').delete().eq('id', id);
+    if (error) { alert("Erro ao excluir lançamento."); return; }
+
+    await carregarDadosDoBanco();
+}
+
+/* =========================================================
+   AULAS, CLASSE E ALUNOS
    ========================================================= */
 function abrirClasse(id) {
     const c = obterClasse(id);
@@ -240,6 +590,7 @@ function mostrarDadosClasse() {
     document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
     document.getElementById("classeNomeCard").textContent = classeAtual.nome;
 
+    const totalMatriculadosClasse = classeAtual.alunos.length;
     const ativos = classeAtual.alunos.filter(a => a.ativo).length;
     const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
     
@@ -253,7 +604,7 @@ function mostrarDadosClasse() {
     const totalChamadas = presencas + ausentes;
     const freq = totalChamadas > 0 ? Math.round((presencas / totalChamadas) * 100) : 0;
 
-    document.getElementById("classeTotalAlunos").textContent = ativos;
+    document.getElementById("classeTotalAlunos").textContent = totalMatriculadosClasse;
     document.getElementById("classeTotalAulas").textContent = aulasC.length;
     document.getElementById("classeTotalPresencas").textContent = presencas;
     document.getElementById("classeTotalAusentes").textContent = ausentes;
@@ -308,7 +659,7 @@ function abrirNovaAula() {
 
     const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
     if (alunosAtivos.length === 0) {
-        listaChamada.innerHTML = `<div class="empty-state">Não há alunos ativos nesta classe para fazer a chamada.</div>`;
+        listaChamada.innerHTML = `<div class="empty-state">Não há matriculados ativos nesta classe para fazer a chamada.</div>`;
         return;
     }
 
@@ -445,291 +796,6 @@ async function excluirClasseAtual() {
     voltarDashboard();
 }
 
-/* =========================================================
-   PRONTUÁRIO, FINANÇAS & ALUNOS
-   ========================================================= */
-function abrirModalProntuarioRapido() {
-    const select = document.getElementById("prontuarioAlunoId");
-    select.innerHTML = `<option value="">Selecione o aluno...</option>`;
-    
-    classes.forEach(c => {
-        c.alunos.forEach(a => {
-            select.innerHTML += `<option value="${a.id}">${a.nome} (${c.nome})</option>`;
-        });
-    });
-
-    document.getElementById("prontuarioTipo").value = "revista";
-    document.getElementById("prontuarioData").value = obterHoje();
-    document.getElementById("prontuarioStatusRevista").value = "entregue_pago";
-    document.getElementById("prontuarioValor").value = "15.00";
-    document.getElementById("prontuarioTemaRevista").value = "";
-    document.getElementById("prontuarioDescricao").value = "";
-    verificarTipoProntuario();
-
-    document.getElementById("modalProntuario").classList.remove("hidden");
-}
-
-function fecharModalProntuario() {
-    document.getElementById("modalProntuario").classList.add("hidden");
-}
-
-function verificarTipoProntuario() {
-    const tipo = document.getElementById("prontuarioTipo").value;
-    const blocoRevista = document.getElementById("blocoDetalhesRevista");
-    if (tipo === "revista") blocoRevista.style.display = "block";
-    else blocoRevista.style.display = "none";
-}
-
-async function salvarProntuarioRapido() {
-    if (!supabaseClient) return;
-    const alunoId = document.getElementById("prontuarioAlunoId").value;
-    const tipo = document.getElementById("prontuarioTipo").value;
-    const data = document.getElementById("prontuarioData").value;
-    const descricao = document.getElementById("prontuarioDescricao").value.trim();
-
-    if (!alunoId) { alert("Selecione um aluno."); return; }
-
-    let valorMovimento = 0;
-    let descFinal = descricao;
-
-    if (tipo === "revista") {
-        const statusRev = document.getElementById("prontuarioStatusRevista").value;
-        const temaRev = document.getElementById("prontuarioTemaRevista").value.trim();
-        valorMovimento = Number(document.getElementById("prontuarioValor").value || 0);
-        descFinal = `Revista: ${temaRev || 'Trimestral'} - Status: ${statusRev}. ${descricao}`;
-
-        await supabaseClient.from('alunos').update({
-            status_revista: statusRev,
-            tema_revista: temaRev,
-            data_entrega_revista: data,
-            data_pagamento_revista: statusRev === 'entregue_pago' ? data : null
-        }).eq('id', alunoId);
-
-        if (statusRev === 'entregue_pago' && valorMovimento > 0) {
-            await supabaseClient.from('financeiro_caixa').insert([{
-                id: gerarId(),
-                tipo_movimento: 'receita',
-                categoria: 'Material/Revista',
-                descricao: `Pagamento Revista (${temaRev}) - Aluno ID ${alunoId}`,
-                valor: valorMovimento,
-                data_movimento: data
-            }]);
-        }
-    }
-
-    const { error } = await supabaseClient.from('prontuario_lancamentos').insert([{
-        id: gerarId(),
-        aluno_id: alunoId,
-        tipo,
-        descricao: descFinal,
-        valor: valorMovimento,
-        data_lancamento: data
-    }]);
-
-    if (error) { alert("Erro ao salvar prontuário."); return; }
-
-    fecharModalProntuario();
-    await carregarDadosDoBanco();
-    alert("Prontuário atualizado com sucesso!");
-}
-
-function abrirDashboardFinancas() {
-    esconderTodasTelas();
-    document.getElementById("telaFinancas").classList.remove("hidden");
-    renderizarTelaFinancas();
-}
-
-function renderizarTelaFinancas() {
-    const tbody = document.getElementById("tabelaFinancas");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    let totalOfertasAulas = 0;
-    aulas.forEach(a => { totalOfertasAulas += Number(a.oferta || 0); });
-
-    totalEntradas += totalOfertasAulas;
-
-    let listaCompleta = [...financas];
-    if (totalOfertasAulas > 0) {
-        listaCompleta.push({
-            data_movimento: obterHoje(),
-            tipo_movimento: 'receita',
-            categoria: 'Oferta de Escola Dominical',
-            descricao: 'Soma automática das ofertas das aulas',
-            valor: totalOfertasAulas
-        });
-    }
-
-    listaCompleta.sort((a, b) => b.data_movimento.localeCompare(a.data_movimento));
-
-    listaCompleta.forEach(f => {
-        if (f.tipo_movimento === 'receita') totalEntradas += Number(f.valor || 0);
-        else totalSaidas += Number(f.valor || 0);
-
-        const badgeCor = f.tipo_movimento === 'receita' ? 'badge-ativo' : 'badge-inativo';
-        tbody.innerHTML += `
-            <tr>
-                <td>${formatarData(f.data_movimento)}</td>
-                <td><span class="${badgeCor}">${f.tipo_movimento.toUpperCase()}</span></td>
-                <td>${f.categoria}</td>
-                <td>${f.descricao}</td>
-                <td><strong>${formatarMoeda(f.valor)}</strong></td>
-            </tr>
-        `;
-    });
-
-    const saldo = totalEntradas - totalSaidas;
-    document.getElementById("finSaldoCaixa").textContent = formatarMoeda(saldo);
-    document.getElementById("finTotalEntradas").textContent = formatarMoeda(totalEntradas);
-    document.getElementById("finTotalSaidas").textContent = formatarMoeda(totalSaidas);
-}
-
-function abrirModalNovaDespesa() {
-    document.getElementById("finValor").value = "";
-    document.getElementById("finDescricao").value = "";
-    document.getElementById("finData").value = obterHoje();
-    document.getElementById("modalDespesa").classList.remove("hidden");
-}
-
-function fecharModalDespesa() {
-    document.getElementById("modalDespesa").classList.add("hidden");
-}
-
-async function salvarLancamentoFinanceiro() {
-    if (!supabaseClient) return;
-    const tipo = document.getElementById("finTipoMov").value;
-    const categoria = document.getElementById("finCategoria").value;
-    const valor = Number(document.getElementById("finValor").value || 0);
-    const data = document.getElementById("finData").value;
-    const descricao = document.getElementById("finDescricao").value.trim();
-
-    if (!valor || !descricao) { alert("Preencha o valor e a descrição."); return; }
-
-    const { error } = await supabaseClient.from('financeiro_caixa').insert([{
-        id: gerarId(),
-        tipo_movimento: tipo,
-        categoria,
-        descricao,
-        valor,
-        data_movimento: data
-    }]);
-
-    if (error) { alert("Erro ao salvar lançamento."); return; }
-
-    fecharModalDespesa();
-    await carregarDadosDoBanco();
-}
-
-function abrirTelaAlunosGeral() {
-    esconderTodasTelas();
-    document.getElementById("telaAlunosGeral").classList.remove("hidden");
-    renderizarTabelaAlunosGeral();
-}
-
-function calcularFaltasConsecutivasOuTotal(alunoId) {
-    const aulasOrdenadas = [...aulas].sort((a, b) => b.data.localeCompare(a.data));
-    let faltas = 0;
-    for (let aula of aulasOrdenadas) {
-        const reg = aula.presencas.find(p => String(p.alunoId) === String(alunoId));
-        if (reg) {
-            if (reg.status === "ausente") faltas++;
-            else break;
-        }
-    }
-    return faltas;
-}
-
-function renderizarTabelaAlunosGeral() {
-    const tbody = document.getElementById("tabelaAlunosGeral");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-
-    const busca = document.getElementById("buscaAlunoGeral")?.value.toLowerCase() || "";
-    const statusFiltro = document.getElementById("filtroStatusAluno")?.value || "todos";
-
-    let lista = [];
-    classes.forEach(c => {
-        if (c.alunos) {
-            c.alunos.forEach(a => {
-                const faltas = calcularFaltasConsecutivasOuTotal(a.id);
-                const ativos = a.ativo === true || a.ativo === null || a.ativo === undefined;
-                lista.push({ ...a, nomeClasse: c.nome, faltasRecentes: faltas, ativo: ativos });
-            });
-        }
-    });
-
-    lista = lista.filter(a => {
-        if (!(a.nome || "").toLowerCase().includes(busca)) return false;
-        if (statusFiltro === "ativos") return a.ativo === true;
-        if (statusFiltro === "inativos") return a.ativo === false;
-        if (statusFiltro === "faltosos") return a.ativo === true && a.faltasRecentes > 2;
-        return true;
-    });
-
-    if (lista.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Nenhum aluno encontrado.</td></tr>`;
-        return;
-    }
-
-    lista.forEach(aluno => {
-        let badgeRevista = '<span class="badge-inativo">Sem Revista</span>';
-        if (aluno.statusRevista === 'entregue_pago') badgeRevista = '<span class="badge-ativo">📖 Revista: Pago</span>';
-        else if (aluno.statusRevista === 'entregue_devendo') badgeRevista = '<span class="badge-alerta">📖 Revista: Devendo</span>';
-
-        const prontAluno = prontuarioGeral.filter(p => String(p.aluno_id) === String(aluno.id));
-        const ultimaObs = prontAluno.length > 0 ? prontAluno[0].descricao : 'Nenhuma nota.';
-
-        tbody.innerHTML += `
-            <tr>
-                <td><strong>${aluno.nome}</strong> ${aluno.ehProfessor ? '<small style="color:var(--primary-light)">(Prof.)</small>' : ''}</td>
-                <td>${aluno.nomeClasse}</td>
-                <td>${aluno.telefone || '-'}</td>
-                <td>${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'}<br>${badgeRevista}</td>
-                <td><span style="font-size:0.85rem; color:var(--text-muted);">${ultimaObs}</span></td>
-                <td><button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAluno('${aluno.id}')">Editar</button></td>
-            </tr>
-        `;
-    });
-}
-
-function filtrarAlunosGeral() { renderizarTabelaAlunosGeral(); }
-
-function imprimirEtiquetas() {
-    let janela = window.open('', '_blank');
-    let html = `
-        <html>
-        <head><title>Etiquetas - EBD</title><style>body{font-family:Arial;margin:20px;}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;}.etiqueta{border:2px dashed #333;padding:15px;border-radius:8px;}.etiqueta h3{margin:0 0 5px 0;font-size:16px;}.etiqueta p{margin:0;font-size:13px;color:#555;}</style></head>
-        <body><div style="margin-bottom:20px;"><button onclick="window.print()" style="padding:10px 20px;">Imprimir</button></div><div class="grid">
-    `;
-    classes.forEach(c => {
-        c.alunos.filter(a => a.ativo).forEach(aluno => {
-            html += `<div class="etiqueta"><h3>${aluno.nome}</h3><p><strong>Classe:</strong> ${c.nome}</p><p>EBD - Escola Bíblica Dominical</p></div>`;
-        });
-    });
-    html += `</div></body></html>`;
-    janela.document.write(html);
-    janela.document.close();
-}
-
-function imprimirFormularioCadastro() {
-    let janela = window.open('', '_blank');
-    let html = `
-        <html>
-        <head><title>Ficha - EBD</title><style>body{font-family:Arial;margin:40px;color:#333;}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:25px;}.field{margin-bottom:20px;border-bottom:1px solid #ccc;padding-bottom:8px;font-size:15px;}.field strong{display:inline-block;width:180px;}.box{border:1px solid #999;height:80px;margin-top:5px;border-radius:4px;}</style></head>
-        <body><div style="margin-bottom:20px;"><button onclick="window.print()" style="padding:10px 20px;">Imprimir Ficha</button></div>
-        <div class="header"><h2>ESCOLA BÍBLICA DOMINICAL (EBD)</h2><p>Ficha de Cadastro de Novo Aluno / Visitante</p></div>
-        <div class="field"><strong>Nome Completo:</strong> _________________________________________________</div>
-        <div class="field"><strong>Telefone / WhatsApp:</strong> _____________________ <strong>Data Nasc.:</strong> ____/____/________</div>
-        <div class="field"><strong>Classe Desejada:</strong> _________________________________________________</div>
-        <div class="field"><strong>Deseja Revista?</strong> (  ) Sim &nbsp;&nbsp;&nbsp;&nbsp; (  ) Não</div>
-        <div class="field"><strong>Observações / Visita:</strong><div class="box"></div></div></body></html>
-    `;
-    janela.document.write(html);
-    janela.document.close();
-}
-
 function abrirDashboardMetricas() {
     esconderTodasTelas();
     document.getElementById("dashboardMetricas").classList.remove("hidden");
@@ -765,7 +831,7 @@ async function salvarClasse() {
 
 function abrirModalAluno() {
     alunoEditando = null;
-    document.getElementById("tituloModalAluno").textContent = "Novo Aluno";
+    document.getElementById("tituloModalAluno").textContent = "Novo Matriculado";
     document.getElementById("nomeAluno").value = "";
     document.getElementById("telefoneAluno").value = "";
     document.getElementById("dataNascimentoAluno").value = "";
@@ -829,7 +895,7 @@ function editarAluno(id) {
     });
     if (!alunoObj) return;
     alunoEditando = alunoObj.id;
-    document.getElementById("tituloModalAluno").textContent = "Editar Aluno";
+    document.getElementById("tituloModalAluno").textContent = "Editar Matriculado";
     document.getElementById("nomeAluno").value = alunoObj.nome;
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
     document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
@@ -846,4 +912,38 @@ function editarAluno(id) {
     select.value = classeObj.id;
 
     document.getElementById("modalAluno").classList.remove("hidden");
+}
+
+function imprimirEtiquetas() {
+    let janela = window.open('', '_blank');
+    let html = `
+        <html>
+        <head><title>Etiquetas - EBD</title><style>body{font-family:Arial;margin:20px;}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;}.etiqueta{border:2px dashed #333;padding:15px;border-radius:8px;}.etiqueta h3{margin:0 0 5px 0;font-size:16px;}.etiqueta p{margin:0;font-size:13px;color:#555;}</style></head>
+        <body><div style="margin-bottom:20px;"><button onclick="window.print()" style="padding:10px 20px;">Imprimir</button></div><div class="grid">
+    `;
+    classes.forEach(c => {
+        c.alunos.filter(a => a.ativo).forEach(aluno => {
+            html += `<div class="etiqueta"><h3>${aluno.nome}</h3><p><strong>Classe:</strong> ${c.nome}</p><p>EBD - Escola Bíblica Dominical</p></div>`;
+        });
+    });
+    html += `</div></body></html>`;
+    janela.document.write(html);
+    janela.document.close();
+}
+
+function imprimirFormularioCadastro() {
+    let janela = window.open('', '_blank');
+    let html = `
+        <html>
+        <head><title>Ficha - EBD</title><style>body{font-family:Arial;margin:40px;color:#333;}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:25px;}.field{margin-bottom:20px;border-bottom:1px solid #ccc;padding-bottom:8px;font-size:15px;}.field strong{display:inline-block;width:180px;}.box{border:1px solid #999;height:80px;margin-top:5px;border-radius:4px;}</style></head>
+        <body><div style="margin-bottom:20px;"><button onclick="window.print()" style="padding:10px 20px;">Imprimir Ficha</button></div>
+        <div class="header"><h2>ESCOLA BÍBLICA DOMINICAL (EBD)</h2><p>Ficha de Cadastro de Novo Aluno / Visitante</p></div>
+        <div class="field"><strong>Nome Completo:</strong> _________________________________________________</div>
+        <div class="field"><strong>Telefone / WhatsApp:</strong> _____________________ <strong>Data Nasc.:</strong> ____/____/________</div>
+        <div class="field"><strong>Classe Desejada:</strong> _________________________________________________</div>
+        <div class="field"><strong>Deseja Revista?</strong> (  ) Sim &nbsp;&nbsp;&nbsp;&nbsp; (  ) Não</div>
+        <div class="field"><strong>Observações / Visita:</strong><div class="box"></div></div></body></html>
+    `;
+    janela.document.write(html);
+    janela.document.close();
 }
