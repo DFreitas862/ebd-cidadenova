@@ -348,7 +348,7 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   PRONTUÁRIO & FINANÇAS (LANÇAMENTO POR CLASSE)
+   PRONTUÁRIO & FINANÇAS
    ========================================================= */
 function abrirModalProntuarioRapido() {
     const select = document.getElementById("prontuarioAlunoId");
@@ -452,7 +452,6 @@ function renderizarTelaFinancas() {
     let totalEntradas = 0;
     let totalSaidas = 0;
 
-    // Adiciona as ofertas automáticas de cada classe separadamente no financeiro
     let listaCompleta = [...financas];
 
     classes.forEach(c => {
@@ -559,7 +558,7 @@ async function excluirLancamentoFinanceiro(id) {
 }
 
 /* =========================================================
-   AULAS, CLASSE E EDIÇÃO DE AULA
+   AULAS, CLASSE E ADIÇÃO PONTUAL DE ALUNOS NA CHAMADA
    ========================================================= */
 function abrirClasse(id) {
     const c = obterClasse(id);
@@ -658,28 +657,70 @@ function abrirNovaAula() {
         });
     });
 
+    carregarSeletorAlunosExtras();
+
     const listaChamada = document.getElementById("listaChamada");
     listaChamada.innerHTML = "";
 
     const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
     if (alunosAtivos.length === 0) {
-        listaChamada.innerHTML = `<div class="empty-state">Não há matriculados ativos nesta classe para fazer a chamada.</div>`;
+        listaChamada.innerHTML = `<div class="empty-state">Não há matriculados ativos nesta classe para fazer a chamada. (Você pode adicionar alunos de outras classes acima).</div>`;
         return;
     }
 
     alunosAtivos.forEach(aluno => {
-        listaChamada.innerHTML += `
-            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
-                <span><strong>${aluno.nome}</strong></span>
-                <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn btn-success btn-presenca active" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
-                    <button type="button" class="btn btn-light btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
-                </div>
-            </div>
-        `;
+        adicionarLinhaChamada(aluno.id, aluno.nome, 'presente');
     });
 
     atualizarContadorPresenca();
+}
+
+function carregarSeletorAlunosExtras() {
+    const selectExtra = document.getElementById("selectAlunoExtra");
+    if (!selectExtra) return;
+    selectExtra.innerHTML = `<option value="">Selecione um aluno de outra classe para incluir...</option>`;
+    
+    classes.forEach(c => {
+        c.alunos.filter(a => a.ativo).forEach(aluno => {
+            // Lista todos os alunos do sistema para caso queiram participar desta aula
+            selectExtra.innerHTML += `<option value="${aluno.id}">${aluno.nome} (Classe: ${c.nome})</option>`;
+        });
+    });
+}
+
+function adicionarAlunoExtraNaChamada() {
+    const selectExtra = document.getElementById("selectAlunoExtra");
+    const alunoId = selectExtra.value;
+    if (!alunoId) { alert("Selecione um aluno na lista."); return; }
+
+    // Verifica se já está na lista da chamada
+    const jaExiste = document.querySelector(`#listaChamada .attendance-item[data-aluno-id="${alunoId}"]`);
+    if (jaExiste) { alert("Este aluno já está na lista de chamada desta aula."); return; }
+
+    let nomeAluno = "";
+    classes.forEach(c => {
+        c.alunos.forEach(a => { if (a.id === alunoId) nomeAluno = a.nome; });
+    });
+
+    adicionarLinhaChamada(alunoId, nomeAluno, 'presente');
+    atualizarContadorPresenca();
+    selectExtra.value = "";
+}
+
+function adicionarLinhaChamada(alunoId, nomeAluno, statusInicial) {
+    const listaChamada = document.getElementById("listaChamada");
+    const classePresenteBtn = statusInicial === 'presente' ? 'btn-success active' : 'btn-light';
+    const classeAusenteBtn = statusInicial === 'ausente' ? 'btn-danger active' : 'btn-light';
+
+    listaChamada.innerHTML += `
+        <div class="attendance-item" data-aluno-id="${alunoId}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
+            <span><strong>${nomeAluno}</strong></span>
+            <div style="display:flex; gap:6px;">
+                <button type="button" class="btn ${classePresenteBtn} btn-presenca" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
+                <button type="button" class="btn ${classeAusenteBtn} btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
+            </div>
+        </div>
+    `;
 }
 
 function editarAula(id) {
@@ -705,26 +746,26 @@ function editarAula(id) {
     });
     selProf.value = aulaObj.professorId || "";
 
+    carregarSeletorAlunosExtras();
+
     const listaChamada = document.getElementById("listaChamada");
     listaChamada.innerHTML = "";
 
-    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
-    alunosAtivos.forEach(aluno => {
-        const regPresenca = aulaObj.presencas.find(p => String(p.alunoId) === String(aluno.id));
-        const statusAtual = regPresenca ? regPresenca.status : 'presente';
+    // Carrega todos os alunos da classe + qualquer aluno que já tenha registro de presença nessa aula específica
+    let idsAlunosParaCarregar = new Set();
+    classeAtual.alunos.filter(a => a.ativo).forEach(a => idsAlunosParaCarregar.add(a.id));
+    aulaObj.presencas.forEach(p => idsAlunosParaCarregar.add(p.alunoId));
 
-        const classePresenteBtn = statusAtual === 'presente' ? 'btn-success active' : 'btn-light';
-        const classeAusenteBtn = statusAtual === 'ausente' ? 'btn-danger active' : 'btn-light';
+    idsAlunosParaCarregar.forEach(alunoId => {
+        let nomeAluno = "Aluno";
+        classes.forEach(c => {
+            c.alunos.forEach(a => { if (a.id === alunoId) nomeAluno = a.nome; });
+        });
 
-        listaChamada.innerHTML += `
-            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
-                <span><strong>${aluno.nome}</strong></span>
-                <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn ${classePresenteBtn} btn-presenca" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
-                    <button type="button" class="btn ${classeAusenteBtn} btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
-                </div>
-            </div>
-        `;
+        const regPresenca = aulaObj.presencas.find(p => String(p.alunoId) === String(alunoId));
+        const statusAtual = regPresenca ? regPresenca.status : 'ausente';
+
+        adicionarLinhaChamada(alunoId, nomeAluno, statusAtual);
     });
 
     atualizarContadorPresenca();
@@ -772,7 +813,6 @@ async function salvarAula() {
     let aulaIdFinal = aulaEditandoId;
 
     if (aulaEditandoId) {
-        // Atualiza aula existente
         await supabaseClient.from('aulas').update({
             data,
             tema,
@@ -781,10 +821,8 @@ async function salvarAula() {
             oferta
         }).eq('id', aulaEditandoId);
 
-        // Remove presenças antigas para reinserir as atualizadas
         await supabaseClient.from('presencas').delete().eq('aula_id', aulaEditandoId);
     } else {
-        // Cria nova aula
         aulaIdFinal = gerarId();
         const { error: errAula } = await supabaseClient.from('aulas').insert([{
             id: aulaIdFinal,
@@ -799,7 +837,6 @@ async function salvarAula() {
         if (errAula) { alert("Erro ao salvar aula."); return; }
     }
 
-    // Salva as presenças
     const itens = document.querySelectorAll("#listaChamada .attendance-item");
     for (let item of itens) {
         const alunoId = item.getAttribute("data-aluno-id");
@@ -959,8 +996,9 @@ function editarAluno(id) {
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
     document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
     
-    const prontAluno = prontuarioGeral.filter(p => String(p.aluno_id) === String(id));
-    document.getElementById("observacoesAluno").value = prontAluno.length > 0 ? prontAluno[0].descricao : "";
+    const prontAluno = prontuario_lancamentos || []; // segurança
+    const prontAlunoFiltro = prontuarioGeral.filter(p => String(p.aluno_id) === String(id));
+    document.getElementById("observacoesAluno").value = prontAlunoFiltro.length > 0 ? prontAlunoFiltro[0].descricao : "";
 
     document.getElementById("ehProfessor").checked = alunoObj.ehProfessor;
     document.getElementById("alunoAtivo").checked = alunoObj.ativo;
