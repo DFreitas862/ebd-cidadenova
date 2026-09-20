@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT COMPLETO COM PERÍODO & GRÁFICO DE OFERTAS
+   EBD MANAGER PRO - SCRIPT COMPLETO E CORRIGIDO
    ========================================================= */
 
 let supabaseClient = null;
@@ -386,8 +386,69 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   GERENCIAMENTO DE AULAS (NOVA E ALTERAR)
+   CLASSE E AULAS
    ========================================================= */
+function abrirClasse(id) {
+    const c = obterClasse(id);
+    if (!c) return;
+    classeAtual = c;
+    esconderTodasTelas();
+    document.getElementById("telaClasse").classList.remove("hidden");
+    mostrarDadosClasse();
+}
+
+function mostrarDadosClasse() {
+    if (!classeAtual) return;
+    document.getElementById("tituloClasse").textContent = classeAtual.nome;
+    document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
+    document.getElementById("classeNomeCard").textContent = classeAtual.nome;
+
+    const totalMatriculadosClasse = classeAtual.alunos.length;
+    const ativos = classeAtual.alunos.filter(a => a.ativo).length;
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
+    
+    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
+    aulasC.forEach(a => {
+        a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
+        visitantes += Number(a.visitantes || 0);
+        ofertas += Number(a.oferta || 0);
+    });
+
+    const totalChamadas = presencas + ausentes;
+    const freq = totalChamadas > 0 ? Math.round((presencas / totalChamadas) * 100) : 0;
+
+    document.getElementById("classeTotalAlunos").textContent = totalMatriculadosClasse;
+    document.getElementById("classeTotalAulas").textContent = aulasC.length;
+    document.getElementById("classeTotalPresencas").textContent = presencas;
+    document.getElementById("classeTotalAusentes").textContent = ausentes;
+    document.getElementById("classeTotalVisitantes").textContent = visitantes;
+    document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
+    document.getElementById("classeFrequencia").textContent = `${freq}%`;
+
+    const containerAulas = document.getElementById("aulasClasse");
+    containerAulas.innerHTML = "";
+    if (aulasC.length === 0) {
+        containerAulas.innerHTML = `<div class="empty-state">Nenhuma aula registrada nesta classe.</div>`;
+    } else {
+        aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
+            containerAulas.innerHTML += `
+                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <strong>${formatarData(a.data)} - ${a.tema || 'Sem tema'}</strong>
+                        <div style="font-size:0.85rem; color:var(--text-muted);">Visitantes: ${a.visitantes} | Oferta: ${formatarMoeda(a.oferta)}</div>
+                    </div>
+                    <button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAula('${a.id}')">Alterar</button>
+                </div>
+            `;
+        });
+    }
+}
+
+function voltarClasse() {
+    if (classeAtual) abrirClasse(classeAtual.id);
+    else voltarDashboard();
+}
+
 function abrirNovaAula() {
     if (!classeAtual) return;
     aulaEditandoId = null;
@@ -563,58 +624,6 @@ async function salvarAula() {
     await carregarDadosDoBanco();
     abrirClasse(classeAtual.id);
     alert("Aula salva com sucesso!");
-}
-
-function mostrarDadosClasse() {
-    if (!classeAtual) return;
-    document.getElementById("tituloClasse").textContent = classeAtual.nome;
-    document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
-    document.getElementById("classeNomeCard").textContent = classeAtual.nome;
-
-    const totalMatriculadosClasse = classeAtual.alunos.length;
-    const ativos = classeAtual.alunos.filter(a => a.ativo).length;
-    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
-    
-    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
-    aulasC.forEach(a => {
-        a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
-        visitantes += Number(a.visitantes || 0);
-        ofertas += Number(a.oferta || 0);
-    });
-
-    const totalChamadas = presencas + ausentes;
-    const freq = totalChamadas > 0 ? Math.round((presencas / totalChamadas) * 100) : 0;
-
-    document.getElementById("classeTotalAlunos").textContent = totalMatriculadosClasse;
-    document.getElementById("classeTotalAulas").textContent = aulasC.length;
-    document.getElementById("classeTotalPresencas").textContent = presencas;
-    document.getElementById("classeTotalAusentes").textContent = ausentes;
-    document.getElementById("classeTotalVisitantes").textContent = visitantes;
-    document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
-    document.getElementById("classeFrequencia").textContent = `${freq}%`;
-
-    const containerAulas = document.getElementById("aulasClasse");
-    containerAulas.innerHTML = "";
-    if (aulasC.length === 0) {
-        containerAulas.innerHTML = `<div class="empty-state">Nenhuma aula registrada nesta classe.</div>`;
-    } else {
-        aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
-            containerAulas.innerHTML += `
-                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <strong>${formatarData(a.data)} - ${a.tema || 'Sem tema'}</strong>
-                        <div style="font-size:0.85rem; color:var(--text-muted);">Visitantes: ${a.visitantes} | Oferta: ${formatarMoeda(a.oferta)}</div>
-                    </div>
-                    <button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAula('${a.id}')">Alterar</button>
-                </div>
-            `;
-        });
-    }
-}
-
-function voltarClasse() {
-    if (classeAtual) abrirClasse(classeAtual.id);
-    else voltarDashboard();
 }
 
 function abrirHistorico() {
