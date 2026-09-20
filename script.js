@@ -678,11 +678,12 @@ function abrirNovaAula() {
 function carregarSeletorAlunosExtras() {
     const selectExtra = document.getElementById("selectAlunoExtra");
     if (!selectExtra) return;
+    
+    // Mantém o cabeçalho padrão e popula com todos os alunos ativos de todas as classes
     selectExtra.innerHTML = `<option value="">Selecione um aluno de outra classe para incluir...</option>`;
     
     classes.forEach(c => {
         c.alunos.filter(a => a.ativo).forEach(aluno => {
-            // Lista todos os alunos do sistema para caso queiram participar desta aula
             selectExtra.innerHTML += `<option value="${aluno.id}">${aluno.nome} (Classe: ${c.nome})</option>`;
         });
     });
@@ -693,7 +694,6 @@ function adicionarAlunoExtraNaChamada() {
     const alunoId = selectExtra.value;
     if (!alunoId) { alert("Selecione um aluno na lista."); return; }
 
-    // Verifica se já está na lista da chamada
     const jaExiste = document.querySelector(`#listaChamada .attendance-item[data-aluno-id="${alunoId}"]`);
     if (jaExiste) { alert("Este aluno já está na lista de chamada desta aula."); return; }
 
@@ -751,7 +751,6 @@ function editarAula(id) {
     const listaChamada = document.getElementById("listaChamada");
     listaChamada.innerHTML = "";
 
-    // Carrega todos os alunos da classe + qualquer aluno que já tenha registro de presença nessa aula específica
     let idsAlunosParaCarregar = new Set();
     classeAtual.alunos.filter(a => a.ativo).forEach(a => idsAlunosParaCarregar.add(a.id));
     aulaObj.presencas.forEach(p => idsAlunosParaCarregar.add(p.alunoId));
@@ -996,7 +995,6 @@ function editarAluno(id) {
     document.getElementById("telefoneAluno").value = alunoObj.telefone || "";
     document.getElementById("dataNascimentoAluno").value = alunoObj.dataNascimento || "";
     
-    const prontAluno = prontuario_lancamentos || []; // segurança
     const prontAlunoFiltro = prontuarioGeral.filter(p => String(p.aluno_id) === String(id));
     document.getElementById("observacoesAluno").value = prontAlunoFiltro.length > 0 ? prontAlunoFiltro[0].descricao : "";
 
