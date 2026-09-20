@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT COMPLETO E CORRIGIDO
+   EBD MANAGER PRO - SCRIPT COM CLIQUE DE CLASSE CORRIGIDO
    ========================================================= */
 
 let supabaseClient = null;
@@ -219,10 +219,10 @@ function mostrarClasses() {
         aulasC.forEach(a => a.presencas.forEach(p => { if (p.status === "presente") presencas++; }));
 
         container.innerHTML += `
-            <div class="class-card" onclick="abrirClasse('${c.id}')" style="background:white; padding:18px; border-radius:10px; border:1px solid var(--border); cursor:pointer; box-shadow:var(--shadow); margin-bottom: 12px;">
+            <div class="class-card" onclick="abrirClasse('${c.id}')" style="background:white; padding:18px; border-radius:10px; border:1px solid var(--border); cursor:pointer; box-shadow:var(--shadow); margin-bottom: 12px; transition: transform 0.2s;">
                 <div class="class-card-header">
                     <div>
-                        <h3 style="color:var(--primary); font-size:1.1rem;">${c.nome}</h3>
+                        <h3 style="color:var(--primary); font-size:1.1rem; margin-bottom:4px;">${c.nome}</h3>
                         <div style="font-size:0.85rem; color:var(--text-muted);">${c.dia} • ${c.horario}</div>
                     </div>
                 </div>
@@ -390,7 +390,10 @@ function filtrarMatriculados() { renderizarTabelaMatriculados(); }
    ========================================================= */
 function abrirClasse(id) {
     const c = obterClasse(id);
-    if (!c) return;
+    if (!c) {
+        alert("Classe não encontrada.");
+        return;
+    }
     classeAtual = c;
     esconderTodasTelas();
     document.getElementById("telaClasse").classList.remove("hidden");
