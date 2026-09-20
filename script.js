@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT COM CLIQUE DE CLASSE CORRIGIDO
+   EBD MANAGER PRO - SCRIPT COMPLETO OTIMIZADO
    ========================================================= */
 
 let supabaseClient = null;
@@ -9,28 +9,22 @@ let financas = [];
 let prontuarioGeral = [];
 
 let classeAtual = null;
-let aulaEditandoId = null;
 let alunoEditando = null;
-let graficoPresencaInstancia = null;
-let graficoOfertasInstancia = null;
-let graficoStatusInstancia = null;
+let graficoCompAlunosInstancia = null;
+let graficoCompOfertasInstancia = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-    const hoje = obterHoje();
-    const dataInicio = document.getElementById("dataInicioDash");
-    const dataFim = document.getElementById("dataFimDash");
-
-    if (dataInicio) dataInicio.value = hoje;
-    if (dataFim) dataFim.value = hoje;
+    const data = document.getElementById("dataDashboard");
+    if (data) data.value = obterHoje();
 
     const dataRel = document.getElementById("dataRelatorio");
-    if (dataRel) dataRel.value = hoje;
+    if (dataRel) dataRel.value = obterHoje();
 
     const finData = document.getElementById("finData");
-    if (finData) finData.value = hoje;
+    if (finData) finData.value = obterHoje();
 
     const pData = document.getElementById("prontuarioData");
-    if (pData) pData.value = hoje;
+    if (pData) pData.value = obterHoje();
 
     if (window.supabase && typeof SUPABASE_URL !== 'undefined') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -71,8 +65,8 @@ async function carregarDadosDoBanco() {
             tema: a.tema,
             professorId: a.professor_id,
             professorNome: a.alunos ? a.alunos.nome : '',
-            visitantes: a.visitantes,
-            oferta: a.oferta,
+            visitantes: Number(a.visitantes || 0),
+            oferta: Number(a.oferta || 0),
             presencas: (a.presencas || []).map(p => ({ alunoId: p.aluno_id, status: p.status }))
         }));
 
@@ -144,25 +138,20 @@ function voltarDashboard() {
 
 function atualizarDashboard() {
     mostrarEstatisticasDashboard();
-    mostrarResumoDoPeríodo();
+    mostrarResumoDoDia();
     mostrarClasses();
-    renderizarGraficosDashboard();
-}
-
-function filtrarAulasPorPeriodo() {
-    const inicio = document.getElementById("dataInicioDash")?.value || obterHoje();
-    const fim = document.getElementById("dataFimDash")?.value || obterHoje();
-    return aulas.filter(a => a.data >= inicio && a.data <= fim);
+    renderizarGraficosComparativosPorClasse();
 }
 
 function mostrarEstatisticasDashboard() {
     let totalAlunosAtivos = 0;
     classes.forEach(c => { totalAlunosAtivos += c.alunos.filter(a => a.ativo).length; });
 
-    const aulasPeriodo = filtrarAulasPorPeriodo();
+    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
+    const aulasDoDia = aulas.filter(a => a.data === dataSel);
 
     let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
-    aulasPeriodo.forEach(a => {
+    aulasDoDia.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
@@ -176,25 +165,26 @@ function mostrarEstatisticasDashboard() {
     document.getElementById("totalOfertas").textContent = formatarMoeda(ofertas);
 }
 
-function mostrarResumoDoPeríodo() {
+function mostrarResumoDoDia() {
     const container = document.getElementById("resumoDoDia");
     if (!container) return;
-    const aulasPeriodo = filtrarAulasPorPeriodo();
+    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
+    const aulasDoDia = aulas.filter(a => a.data === dataSel);
 
-    if (aulasPeriodo.length === 0) {
+    if (aulasDoDia.length === 0) {
         container.innerHTML = `<div class="daily-summary-card"><span>Aulas</span><strong>0</strong></div><div class="daily-summary-card"><span>Presenças</span><strong>0</strong></div><div class="daily-summary-card"><span>Visitantes</span><strong>0</strong></div><div class="daily-summary-card"><span>Ofertas</span><strong>R$ 0,00</strong></div>`;
         return;
     }
 
     let presencas = 0, visitantes = 0, ofertas = 0;
-    aulasPeriodo.forEach(a => {
+    aulasDoDia.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
     });
 
     container.innerHTML = `
-        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasPeriodo.length}</strong></div>
+        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasDoDia.length}</strong></div>
         <div class="daily-summary-card"><span>Presenças</span><strong>${presencas}</strong></div>
         <div class="daily-summary-card"><span>Visitantes</span><strong>${visitantes}</strong></div>
         <div class="daily-summary-card"><span>Ofertas</span><strong>${formatarMoeda(ofertas)}</strong></div>
@@ -219,10 +209,10 @@ function mostrarClasses() {
         aulasC.forEach(a => a.presencas.forEach(p => { if (p.status === "presente") presencas++; }));
 
         container.innerHTML += `
-            <div class="class-card" onclick="abrirClasse('${c.id}')" style="background:white; padding:18px; border-radius:10px; border:1px solid var(--border); cursor:pointer; box-shadow:var(--shadow); margin-bottom: 12px; transition: transform 0.2s;">
+            <div class="class-card" onclick="abrirClasse('${c.id}')" style="background:white; padding:18px; border-radius:10px; border:1px solid var(--border); cursor:pointer; box-shadow:var(--shadow); margin-bottom: 12px;">
                 <div class="class-card-header">
                     <div>
-                        <h3 style="color:var(--primary); font-size:1.1rem; margin-bottom:4px;">${c.nome}</h3>
+                        <h3 style="color:var(--primary); font-size:1.1rem;">${c.nome}</h3>
                         <div style="font-size:0.85rem; color:var(--text-muted);">${c.dia} • ${c.horario}</div>
                     </div>
                 </div>
@@ -237,65 +227,43 @@ function mostrarClasses() {
     });
 }
 
-function renderizarGraficosDashboard() {
-    const aulasPeriodo = filtrarAulasPorPeriodo();
-
-    let presencasPeriodo = 0, ausenciasPeriodo = 0, ofertasPeriodo = 0;
-    aulasPeriodo.forEach(a => {
-        ofertasPeriodo += Number(a.oferta || 0);
-        a.presencas.forEach(p => {
-            if (p.status === 'presente') presencasPeriodo++;
-            else ausenciasPeriodo++;
-        });
+function renderizarGraficosComparativosPorClasse() {
+    const nomesClasses = classes.map(c => c.nome);
+    
+    // Soma de ofertas e quantidade de alunos matriculados por classe para o comparativo
+    const dadosAlunosClasse = classes.map(c => c.alunos.filter(a => a.ativo).length);
+    const dadosOfertasClasse = classes.map(c => {
+        let somaOfertas = 0;
+        const aulasC = aulas.filter(a => String(a.classeId) === String(c.id));
+        aulasC.forEach(a => somaOfertas += Number(a.oferta || 0));
+        return somaOfertas;
     });
 
-    let totalAtivos = 0, totalInativos = 0;
-    classes.forEach(c => {
-        c.alunos.forEach(a => {
-            if (a.ativo) totalAtivos++;
-            else totalInativos++;
-        });
-    });
-
-    // 1. Gráfico de Presenças do Período
-    const ctx1 = document.getElementById('graficoPresencaPeriodo');
+    // Gráfico 1: Matriculados Ativos por Classe
+    const ctx1 = document.getElementById('graficoComparativoAlunos');
     if (ctx1) {
-        if (graficoPresencaInstancia) graficoPresencaInstancia.destroy();
-        graficoPresencaInstancia = new Chart(ctx1, {
-            type: 'doughnut',
-            data: {
-                labels: ['Presentes', 'Ausentes'],
-                datasets: [{ data: [presencasPeriodo, ausenciasPeriodo], backgroundColor: ['#10b981', '#ef4444'] }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Presenças vs Ausências (Período)' } } }
-        });
-    }
-
-    // 2. Gráfico de Ofertas do Período
-    const ctxOferta = document.getElementById('graficoOfertasPeriodo');
-    if (ctxOferta) {
-        if (graficoOfertasInstancia) graficoOfertasInstancia.destroy();
-        graficoOfertasInstancia = new Chart(ctxOferta, {
+        if (graficoCompAlunosInstancia) graficoCompAlunosInstancia.destroy();
+        graficoCompAlunosInstancia = new Chart(ctx1, {
             type: 'bar',
             data: {
-                labels: ['Total Arrecadado'],
-                datasets: [{ label: 'Ofertas (R$)', data: [ofertasPeriodo], backgroundColor: ['#10b981'] }]
+                labels: nomesClasses,
+                datasets: [{ label: 'Matriculados Ativos', data: dadosAlunosClasse, backgroundColor: '#2563eb' }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Ofertas no Período (R$)' } }, scales: { y: { beginAtZero: true } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Crescimento: Matriculados por Classe' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 
-    // 3. Gráfico de Alunos Ativos vs Inativos
-    const ctx2 = document.getElementById('graficoAlunosStatus');
+    // Gráfico 2: Total de Ofertas por Classe
+    const ctx2 = document.getElementById('graficoComparativoOfertas');
     if (ctx2) {
-        if (graficoStatusInstancia) graficoStatusInstancia.destroy();
-        graficoStatusInstancia = new Chart(ctx2, {
+        if (graficoCompOfertasInstancia) graficoCompOfertasInstancia.destroy();
+        graficoCompOfertasInstancia = new Chart(ctx2, {
             type: 'bar',
             data: {
-                labels: ['Ativos', 'Inativos'],
-                datasets: [{ label: 'Matriculados', data: [totalAtivos, totalInativos], backgroundColor: ['#2563eb', '#64748b'] }]
+                labels: nomesClasses,
+                datasets: [{ label: 'Ofertas Acumuladas (R$)', data: dadosOfertasClasse, backgroundColor: '#10b981' }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Status Geral de Matriculados' } }, scales: { y: { beginAtZero: true } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Comparativo Financeiro de Ofertas por Classe' } }, scales: { y: { beginAtZero: true } } }
         });
     }
 }
@@ -305,11 +273,8 @@ function renderizarGraficosDashboard() {
    ========================================================= */
 function abrirTelaMatriculados() {
     esconderTodasTelas();
-    const telaMatriculadosEl = document.getElementById("telaMatriculados");
-    if (telaMatriculadosEl) {
-        telaMatriculadosEl.classList.remove("hidden");
-        renderizarTabelaMatriculados();
-    }
+    document.getElementById("telaMatriculados").classList.remove("hidden");
+    renderizarTabelaMatriculados();
 }
 
 function calcularFaltasConsecutivasOuTotal(alunoId) {
@@ -377,7 +342,7 @@ function renderizarTabelaMatriculados() {
                 <td>${aluno.telefone || '-'}</td>
                 <td>${aluno.ativo ? '<span class="badge-ativo">Ativo</span>' : '<span class="badge-inativo">Inativo</span>'} ${aluno.faltasRecentes > 2 ? '<span class="badge-alerta">⚠️ Atenção</span>' : ''}</td>
                 <td><span style="font-size:0.85rem; color:var(--text-muted);">${ultimaObs}</span></td>
-                <td><button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAluno('${aluno.id}')">Editar</button></td>
+                <td><button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAluno('${aluno.id}')">Editar / Inativar</button></td>
             </tr>
         `;
     });
@@ -386,290 +351,7 @@ function renderizarTabelaMatriculados() {
 function filtrarMatriculados() { renderizarTabelaMatriculados(); }
 
 /* =========================================================
-   CLASSE E AULAS
-   ========================================================= */
-function abrirClasse(id) {
-    const c = obterClasse(id);
-    if (!c) {
-        alert("Classe não encontrada.");
-        return;
-    }
-    classeAtual = c;
-    esconderTodasTelas();
-    document.getElementById("telaClasse").classList.remove("hidden");
-    mostrarDadosClasse();
-}
-
-function mostrarDadosClasse() {
-    if (!classeAtual) return;
-    document.getElementById("tituloClasse").textContent = classeAtual.nome;
-    document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
-    document.getElementById("classeNomeCard").textContent = classeAtual.nome;
-
-    const totalMatriculadosClasse = classeAtual.alunos.length;
-    const ativos = classeAtual.alunos.filter(a => a.ativo).length;
-    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
-    
-    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
-    aulasC.forEach(a => {
-        a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
-        visitantes += Number(a.visitantes || 0);
-        ofertas += Number(a.oferta || 0);
-    });
-
-    const totalChamadas = presencas + ausentes;
-    const freq = totalChamadas > 0 ? Math.round((presencas / totalChamadas) * 100) : 0;
-
-    document.getElementById("classeTotalAlunos").textContent = totalMatriculadosClasse;
-    document.getElementById("classeTotalAulas").textContent = aulasC.length;
-    document.getElementById("classeTotalPresencas").textContent = presencas;
-    document.getElementById("classeTotalAusentes").textContent = ausentes;
-    document.getElementById("classeTotalVisitantes").textContent = visitantes;
-    document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
-    document.getElementById("classeFrequencia").textContent = `${freq}%`;
-
-    const containerAulas = document.getElementById("aulasClasse");
-    containerAulas.innerHTML = "";
-    if (aulasC.length === 0) {
-        containerAulas.innerHTML = `<div class="empty-state">Nenhuma aula registrada nesta classe.</div>`;
-    } else {
-        aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
-            containerAulas.innerHTML += `
-                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <strong>${formatarData(a.data)} - ${a.tema || 'Sem tema'}</strong>
-                        <div style="font-size:0.85rem; color:var(--text-muted);">Visitantes: ${a.visitantes} | Oferta: ${formatarMoeda(a.oferta)}</div>
-                    </div>
-                    <button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAula('${a.id}')">Alterar</button>
-                </div>
-            `;
-        });
-    }
-}
-
-function voltarClasse() {
-    if (classeAtual) abrirClasse(classeAtual.id);
-    else voltarDashboard();
-}
-
-function abrirNovaAula() {
-    if (!classeAtual) return;
-    aulaEditandoId = null;
-    esconderTodasTelas();
-    document.getElementById("telaAula").classList.remove("hidden");
-
-    document.getElementById("tituloAula").textContent = `Nova Aula - ${classeAtual.nome}`;
-    document.getElementById("dataAula").value = obterHoje();
-    document.getElementById("temaAula").value = "";
-    document.getElementById("visitantesAula").value = "0";
-    document.getElementById("ofertaAula").value = "0.00";
-
-    const selProf = document.getElementById("professorAula");
-    selProf.innerHTML = `<option value="">Selecione o professor</option>`;
-    classes.forEach(c => {
-        c.alunos.filter(a => a.ehProfessor && a.ativo).forEach(p => {
-            selProf.innerHTML += `<option value="${p.id}">${p.nome} (${c.nome})</option>`;
-        });
-    });
-
-    const listaChamada = document.getElementById("listaChamada");
-    listaChamada.innerHTML = "";
-
-    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
-    if (alunosAtivos.length === 0) {
-        listaChamada.innerHTML = `<div class="empty-state">Não há matriculados ativos nesta classe para fazer a chamada.</div>`;
-        return;
-    }
-
-    alunosAtivos.forEach(aluno => {
-        listaChamada.innerHTML += `
-            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
-                <span><strong>${aluno.nome}</strong></span>
-                <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn btn-success btn-presenca active" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
-                    <button type="button" class="btn btn-light btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
-                </div>
-            </div>
-        `;
-    });
-
-    atualizarContadorPresenca();
-}
-
-function editarAula(idAula) {
-    const aulaObj = aulas.find(a => String(a.id) === String(idAula));
-    if (!aulaObj) return;
-
-    aulaEditandoId = aulaObj.id;
-    classeAtual = obterClasse(aulaObj.classeId);
-
-    esconderTodasTelas();
-    document.getElementById("telaAula").classList.remove("hidden");
-
-    document.getElementById("tituloAula").textContent = `Editar Aula - ${classeAtual.nome}`;
-    document.getElementById("dataAula").value = aulaObj.data;
-    document.getElementById("temaAula").value = aulaObj.tema || "";
-    document.getElementById("visitantesAula").value = aulaObj.visitantes || 0;
-    document.getElementById("ofertaAula").value = aulaObj.oferta || 0;
-
-    const selProf = document.getElementById("professorAula");
-    selProf.innerHTML = `<option value="">Selecione o professor</option>`;
-    classes.forEach(c => {
-        c.alunos.filter(a => a.ehProfessor && a.ativo).forEach(p => {
-            selProf.innerHTML += `<option value="${p.id}">${p.nome} (${c.nome})</option>`;
-        });
-    });
-    selProf.value = aulaObj.professorId || "";
-
-    const listaChamada = document.getElementById("listaChamada");
-    listaChamada.innerHTML = "";
-
-    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
-    alunosAtivos.forEach(aluno => {
-        const registro = aulaObj.presencas.find(p => String(p.alunoId) === String(aluno.id));
-        const status = registro ? registro.status : "presente";
-
-        const ativoPres = status === "presente" ? "btn-success active" : "btn-light";
-        const ativoAus = status === "ausente" ? "btn-danger active" : "btn-light";
-
-        listaChamada.innerHTML += `
-            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
-                <span><strong>${aluno.nome}</strong></span>
-                <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn ${ativoPres} btn-presenca" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
-                    <button type="button" class="btn ${ativoAus} btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
-                </div>
-            </div>
-        `;
-    });
-
-    atualizarContadorPresenca();
-}
-
-function marcarPresenca(btn, status) {
-    const parent = btn.parentElement;
-    parent.querySelectorAll(".btn-presenca").forEach(b => {
-        b.classList.remove("btn-success", "btn-danger", "active");
-        b.classList.add("btn-light");
-    });
-
-    if (status === "presente") {
-        btn.classList.remove("btn-light");
-        btn.classList.add("btn-success", "active");
-    } else {
-        btn.classList.remove("btn-light");
-        btn.classList.add("btn-danger", "active");
-    }
-    atualizarContadorPresenca();
-}
-
-function atualizarContadorPresenca() {
-    const itens = document.querySelectorAll("#listaChamada .attendance-item");
-    let presentes = 0;
-    itens.forEach(item => {
-        const btnPres = item.querySelector(".btn-success.active");
-        if (btnPres) presentes++;
-    });
-    const contador = document.getElementById("contadorPresenca");
-    if (contador) contador.textContent = `${presentes} presentes`;
-}
-
-async function salvarAula() {
-    if (!supabaseClient || !classeAtual) return;
-
-    const data = document.getElementById("dataAula").value;
-    const tema = document.getElementById("temaAula").value.trim();
-    const professorId = document.getElementById("professorAula").value || null;
-    const visitantes = Number(document.getElementById("visitantesAula").value || 0);
-    const oferta = Number(document.getElementById("ofertaAula").value || 0);
-
-    if (!data) { alert("Informe a data da aula."); return; }
-
-    const aulaId = aulaEditandoId ? aulaEditandoId : gerarId();
-
-    if (aulaEditandoId) {
-        await supabaseClient.from('aulas').update({
-            data,
-            tema,
-            professor_id: professorId,
-            visitantes,
-            oferta
-        }).eq('id', aulaId);
-
-        await supabaseClient.from('presencas').delete().eq('aula_id', aulaId);
-    } else {
-        const { error: errAula } = await supabaseClient.from('aulas').insert([{
-            id: aulaId,
-            classe_id: classeAtual.id,
-            data,
-            tema,
-            professor_id: professorId,
-            visitantes,
-            oferta
-        }]);
-        if (errAula) { alert("Erro ao salvar aula."); return; }
-    }
-
-    const itens = document.querySelectorAll("#listaChamada .attendance-item");
-    for (let item of itens) {
-        const alunoId = item.getAttribute("data-aluno-id");
-        const status = item.querySelector(".btn-success.active") ? "presente" : "ausente";
-
-        await supabaseClient.from('presencas').insert([{
-            id: gerarId(),
-            aula_id: aulaId,
-            aluno_id: alunoId,
-            status
-        }]);
-    }
-
-    aulaEditandoId = null;
-    await carregarDadosDoBanco();
-    abrirClasse(classeAtual.id);
-    alert("Aula salva com sucesso!");
-}
-
-function abrirHistorico() {
-    if (!classeAtual) return;
-    esconderTodasTelas();
-    document.getElementById("telaHistorico").classList.remove("hidden");
-    document.getElementById("subtituloHistorico").textContent = `Histórico de aulas da classe ${classeAtual.nome}`;
-
-    const container = document.getElementById("listaHistorico");
-    container.innerHTML = "";
-
-    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
-    if (aulasC.length === 0) {
-        container.innerHTML = `<div class="empty-state">Nenhum histórico registrado.</div>`;
-        return;
-    }
-
-    aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
-        let presentes = a.presencas.filter(p => p.status === 'presente').length;
-        container.innerHTML += `
-            <div style="background:white; padding:16px; border-radius:8px; border:1px solid var(--border); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <h3>${formatarData(a.data)} - ${a.tema || 'Sem tema'}</h3>
-                    <p style="margin:6px 0; color:var(--text-muted);">Professor: ${a.professorNome || 'Não informado'} | Presentes: ${presentes} | Visitantes: ${a.visitantes} | Oferta: ${formatarMoeda(a.oferta)}</p>
-                </div>
-                <button class="btn btn-light" style="padding:6px 10px; font-size:0.8rem;" onclick="editarAula('${a.id}')">Alterar</button>
-            </div>
-        `;
-    });
-}
-
-async function excluirClasseAtual() {
-    if (!supabaseClient || !classeAtual) return;
-    if (!confirm(`Deseja realmente excluir a classe "${classeAtual.nome}" e todas as suas aulas?`)) return;
-
-    const { error } = await supabaseClient.from('classes').delete().eq('id', classeAtual.id);
-    if (error) { alert("Erro ao excluir classe."); return; }
-
-    voltarDashboard();
-}
-
-/* =========================================================
-   PRONTUÁRIO & FINANÇAS
+   PRONTUÁRIO & FINANÇAS & CLASSE COM RESUMO DE AULAS
    ========================================================= */
 function abrirModalProntuarioRapido() {
     const select = document.getElementById("prontuarioAlunoId");
@@ -772,8 +454,24 @@ function renderizarTelaFinancas() {
 
     let totalEntradas = 0;
     let totalSaidas = 0;
+    let totalOfertasAulas = 0;
+    aulas.forEach(a => { totalOfertasAulas += Number(a.oferta || 0); });
+
+    totalEntradas += totalOfertasAulas;
 
     let listaCompleta = [...financas];
+    if (totalOfertasAulas > 0) {
+        listaCompleta.push({
+            id: 'auto-oferta',
+            data_movimento: obterHoje(),
+            tipo_movimento: 'receita',
+            categoria: 'Oferta de Escola Dominical (Automática)',
+            descricao: 'Soma total acumulada das ofertas das aulas registradas',
+            valor: totalOfertasAulas,
+            automatico: true
+        });
+    }
+
     listaCompleta.sort((a, b) => b.data_movimento.localeCompare(a.data_movimento));
 
     listaCompleta.forEach(f => {
@@ -781,7 +479,7 @@ function renderizarTelaFinancas() {
         else totalSaidas += Number(f.valor || 0);
 
         const badgeCor = f.tipo_movimento === 'receita' ? 'badge-ativo' : 'badge-inativo';
-        const botaoExcluir = `<button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="excluirLancamentoFinanceiro('${f.id}')">Excluir</button>`;
+        const botaoExcluir = f.automatico ? '-' : `<button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="excluirLancamentoFinanceiro('${f.id}')">Excluir</button>`;
 
         tbody.innerHTML += `
             <tr>
@@ -860,6 +558,243 @@ async function excluirLancamentoFinanceiro(id) {
     if (error) { alert("Erro ao excluir lançamento."); return; }
 
     await carregarDadosDoBanco();
+}
+
+/* =========================================================
+   AULAS, CLASSE E RESUMO DETALHADO POR AULA
+   ========================================================= */
+function abrirClasse(id) {
+    const c = obterClasse(id);
+    if (!c) return;
+    classeAtual = c;
+    esconderTodasTelas();
+    document.getElementById("telaClasse").classList.remove("hidden");
+    mostrarDadosClasse();
+}
+
+function mostrarDadosClasse() {
+    if (!classeAtual) return;
+    document.getElementById("tituloClasse").textContent = classeAtual.nome;
+    document.getElementById("infoClasse").textContent = `${classeAtual.dia} • ${classeAtual.horario}`;
+    document.getElementById("classeNomeCard").textContent = classeAtual.nome;
+
+    const totalMatriculadosClasse = classeAtual.alunos.length;
+    const ativos = classeAtual.alunos.filter(a => a.ativo).length;
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
+    
+    let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
+    aulasC.forEach(a => {
+        a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
+        visitantes += Number(a.visitantes || 0);
+        ofertas += Number(a.oferta || 0);
+    });
+
+    const totalChamadas = presencas + ausentes;
+    const freq = totalChamadas > 0 ? Math.round((presencas / totalChamadas) * 100) : 0;
+
+    document.getElementById("classeTotalAlunos").textContent = totalMatriculadosClasse;
+    document.getElementById("classeTotalAulas").textContent = aulasC.length;
+    document.getElementById("classeTotalPresencas").textContent = presencas;
+    document.getElementById("classeTotalAusentes").textContent = ausentes;
+    document.getElementById("classeTotalVisitantes").textContent = visitantes;
+    document.getElementById("classeTotalOfertas").textContent = formatarMoeda(ofertas);
+    document.getElementById("classeFrequencia").textContent = `${freq}%`;
+
+    const containerAulas = document.getElementById("aulasClasse");
+    containerAulas.innerHTML = "";
+    if (aulasC.length === 0) {
+        containerAulas.innerHTML = `<div class="empty-state">Nenhuma aula registrada nesta classe.</div>`;
+    } else {
+        aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
+            let pAula = a.presencas.filter(p => p.status === 'presente').length;
+            let aAula = a.presencas.filter(p => p.status === 'ausente').length;
+            let totalMatDia = a.presencas.length;
+            let freqAula = (pAula + aAula) > 0 ? Math.round((pAula / (pAula + aAula)) * 100) : 0;
+
+            containerAulas.innerHTML += `
+                <div style="background:white; padding:14px; border-radius:8px; border:1px solid var(--border); margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                        <strong>${formatarData(a.data)} - Tema: ${a.tema || 'Sem tema'}</strong>
+                        <span style="font-size:0.85rem; color:var(--primary-light); font-weight:bold;">Freq: ${freqAula}%</span>
+                    </div>
+                    <div style="font-size:0.85rem; color:var(--text-muted); display:flex; gap:12px; flex-wrap:wrap;">
+                        <div>Matriculados: <strong>${totalMatDia}</strong></div>
+                        <div>Presentes: <strong style="color:var(--success);">${pAula}</strong></div>
+                        <div>Ausentes: <strong style="color:var(--danger);">${aAula}</strong></div>
+                        <div>Visitantes: <strong>${a.visitantes}</strong></div>
+                        <div>Ofertório: <strong>${formatarMoeda(a.oferta)}</strong></div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+}
+
+function voltarClasse() {
+    if (classeAtual) abrirClasse(classeAtual.id);
+    else voltarDashboard();
+}
+
+function abrirNovaAula() {
+    if (!classeAtual) return;
+    esconderTodasTelas();
+    document.getElementById("telaAula").classList.remove("hidden");
+
+    document.getElementById("tituloAula").textContent = `Nova Aula - ${classeAtual.nome}`;
+    document.getElementById("dataAula").value = obterHoje();
+    document.getElementById("temaAula").value = "";
+    document.getElementById("visitantesAula").value = "0";
+    document.getElementById("ofertaAula").value = "0.00";
+
+    const selProf = document.getElementById("professorAula");
+    selProf.innerHTML = `<option value="">Selecione o professor</option>`;
+    classes.forEach(c => {
+        c.alunos.filter(a => a.ehProfessor && a.ativo).forEach(p => {
+            selProf.innerHTML += `<option value="${p.id}">${p.nome} (${c.nome})</option>`;
+        });
+    });
+
+    const listaChamada = document.getElementById("listaChamada");
+    listaChamada.innerHTML = "";
+
+    const alunosAtivos = classeAtual.alunos.filter(a => a.ativo);
+    if (alunosAtivos.length === 0) {
+        listaChamada.innerHTML = `<div class="empty-state">Não há matriculados ativos nesta classe para fazer a chamada.</div>`;
+        return;
+    }
+
+    alunosAtivos.forEach(aluno => {
+        listaChamada.innerHTML += `
+            <div class="attendance-item" data-aluno-id="${aluno.id}" style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 14px; border-radius:8px; border:1px solid var(--border);">
+                <span><strong>${aluno.nome}</strong></span>
+                <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn btn-success btn-presenca active" onclick="marcarPresenca(this, 'presente')" style="padding:6px 12px; font-size:0.8rem;">Presente</button>
+                    <button type="button" class="btn btn-light btn-presenca" onclick="marcarPresenca(this, 'ausente')" style="padding:6px 12px; font-size:0.8rem;">Ausente</button>
+                </div>
+            </div>
+        `;
+    });
+
+    atualizarContadorPresenca();
+}
+
+function marcarPresenca(btn, status) {
+    const parent = btn.parentElement;
+    parent.querySelectorAll(".btn-presenca").forEach(b => {
+        b.classList.remove("btn-success", "btn-danger", "active");
+        b.classList.add("btn-light");
+    });
+
+    if (status === "presente") {
+        btn.classList.remove("btn-light");
+        btn.classList.add("btn-success", "active");
+    } else {
+        btn.classList.remove("btn-light");
+        btn.classList.add("btn-danger", "active");
+    }
+    atualizarContadorPresenca();
+}
+
+function atualizarContadorPresenca() {
+    const itens = document.querySelectorAll("#listaChamada .attendance-item");
+    let presentes = 0;
+    itens.forEach(item => {
+        const btnPres = item.querySelector(".btn-success.active");
+        if (btnPres) presentes++;
+    });
+    const contador = document.getElementById("contadorPresenca");
+    if (contador) contador.textContent = `${presentes} presentes`;
+}
+
+async function salvarAula() {
+    if (!supabaseClient || !classeAtual) return;
+
+    const data = document.getElementById("dataAula").value;
+    const tema = document.getElementById("temaAula").value.trim();
+    const professorId = document.getElementById("professorAula").value || null;
+    const visitantes = Number(document.getElementById("visitantesAula").value || 0);
+    const oferta = Number(document.getElementById("ofertaAula").value || 0);
+
+    if (!data) { alert("Informe a data da aula."); return; }
+
+    const aulaId = gerarId();
+
+    const { error: errAula } = await supabaseClient.from('aulas').insert([{
+        id: aulaId,
+        classe_id: classeAtual.id,
+        data,
+        tema,
+        professor_id: professorId,
+        visitantes,
+        oferta
+    }]);
+
+    if (errAula) { alert("Erro ao salvar aula."); return; }
+
+    const itens = document.querySelectorAll("#listaChamada .attendance-item");
+    for (let item of itens) {
+        const alunoId = item.getAttribute("data-aluno-id");
+        const status = item.querySelector(".btn-success.active") ? "presente" : "ausente";
+
+        await supabaseClient.from('presencas').insert([{
+            id: gerarId(),
+            aula_id: aulaId,
+            aluno_id: alunoId,
+            status
+        }]);
+    }
+
+    if (oferta > 0) {
+        await supabaseClient.from('financeiro_caixa').insert([{
+            id: gerarId(),
+            tipo_movimento: 'receita',
+            categoria: 'Oferta de Escola Dominical',
+            descricao: `Oferta da Aula (${classeAtual.nome} - ${formatarData(data)})`,
+            valor: oferta,
+            data_movimento: data
+        }]);
+    }
+
+    await carregarDadosDoBanco();
+    abrirClasse(classeAtual.id);
+    alert("Aula salva com sucesso!");
+}
+
+function abrirHistorico() {
+    if (!classeAtual) return;
+    esconderTodasTelas();
+    document.getElementById("telaHistorico").classList.remove("hidden");
+    document.getElementById("subtituloHistorico").textContent = `Histórico de aulas da classe ${classeAtual.nome}`;
+
+    const container = document.getElementById("listaHistorico");
+    container.innerHTML = "";
+
+    const aulasC = aulas.filter(a => String(a.classeId) === String(classeAtual.id));
+    if (aulasC.length === 0) {
+        container.innerHTML = `<div class="empty-state">Nenhum histórico registrado.</div>`;
+        return;
+    }
+
+    aulasC.sort((a, b) => b.data.localeCompare(a.data)).forEach(a => {
+        let presentes = a.presencas.filter(p => p.status === 'presente').length;
+        let ausentes = a.presencas.filter(p => p.status === 'ausente').length;
+        container.innerHTML += `
+            <div style="background:white; padding:16px; border-radius:8px; border:1px solid var(--border); margin-bottom:12px;">
+                <h3>${formatarData(a.data)} - ${a.tema || 'Sem tema'}</h3>
+                <p style="margin:6px 0; color:var(--text-muted);">Professor: ${a.professorNome || 'Não informado'} | Presentes: ${presentes} | Ausentes: ${ausentes} | Visitantes: ${a.visitantes} | Oferta: ${formatarMoeda(a.oferta)}</p>
+            </div>
+        `;
+    });
+}
+
+async function excluirClasseAtual() {
+    if (!supabaseClient || !classeAtual) return;
+    if (!confirm(`Deseja realmente excluir a classe "${classeAtual.nome}" e todas as suas aulas?`)) return;
+
+    const { error } = await supabaseClient.from('classes').delete().eq('id', classeAtual.id);
+    if (error) { alert("Erro ao excluir classe."); return; }
+
+    voltarDashboard();
 }
 
 function abrirDashboardMetricas() {
@@ -993,23 +928,6 @@ function imprimirEtiquetas() {
         });
     });
     html += `</div></body></html>`;
-    janela.document.write(html);
-    janela.document.close();
-}
-
-function imprimirFormularioCadastro() {
-    let janela = window.open('', '_blank');
-    let html = `
-        <html>
-        <head><title>Ficha - EBD</title><style>body{font-family:Arial;margin:40px;color:#333;}.header{text-align:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:25px;}.field{margin-bottom:20px;border-bottom:1px solid #ccc;padding-bottom:8px;font-size:15px;}.field strong{display:inline-block;width:180px;}.box{border:1px solid #999;height:80px;margin-top:5px;border-radius:4px;}</style></head>
-        <body><div style="margin-bottom:20px;"><button onclick="window.print()" style="padding:10px 20px;">Imprimir Ficha</button></div>
-        <div class="header"><h2>ESCOLA BÍBLICA DOMINICAL (EBD)</h2><p>Ficha de Cadastro de Novo Aluno / Visitante</p></div>
-        <div class="field"><strong>Nome Completo:</strong> _________________________________________________</div>
-        <div class="field"><strong>Telefone / WhatsApp:</strong> _____________________ <strong>Data Nasc.:</strong> ____/____/________</div>
-        <div class="field"><strong>Classe Desejada:</strong> _________________________________________________</div>
-        <div class="field"><strong>Deseja Revista?</strong> (  ) Sim &nbsp;&nbsp;&nbsp;&nbsp; (  ) Não</div>
-        <div class="field"><strong>Observações / Visita:</strong><div class="box"></div></div></body></html>
-    `;
     janela.document.write(html);
     janela.document.close();
 }
