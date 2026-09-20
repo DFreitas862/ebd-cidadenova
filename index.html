@@ -67,7 +67,7 @@
                 <div>
                     <span class="eyebrow">VISÃO GERAL</span>
                     <h1>Dashboard</h1>
-                    <p>Acompanhe o movimento, gráficos e as atividades da sua EBD.</p>
+                    <p>Acompanhe o movimento, gráficos por período e as atividades da sua EBD.</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-light" onclick="abrirTelaMatriculados()">👥 Matriculados</button>
@@ -76,9 +76,19 @@
                 </div>
             </div>
 
+            <!-- FILTRO DE PERÍODO -->
             <div class="date-filter panel" style="padding: 16px; margin-bottom: 20px;">
-                <label style="font-weight:600; font-size:0.85rem; margin-bottom:6px; display:block;">Ver informações do dia:</label>
-                <input type="date" id="dataDashboard" onchange="atualizarDashboard()" style="max-width:250px;">
+                <label style="font-weight:600; font-size:0.85rem; margin-bottom:8px; display:block;">Filtrar informações por Período:</label>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">De:</span>
+                        <input type="date" id="dataInicioDash" onchange="atualizarDashboard()" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                    </div>
+                    <div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Até:</span>
+                        <input type="date" id="dataFimDash" onchange="atualizarDashboard()" style="padding: 8px; border-radius: 8px; border: 1px solid var(--border);">
+                    </div>
+                </div>
             </div>
 
             <div class="stats-grid">
@@ -92,30 +102,33 @@
                 </div>
                 <div class="stat-card success">
                     <div class="stat-icon">✓</div>
-                    <div><span>Presenças</span><strong id="totalPresencas">0</strong></div>
+                    <div><span>Presenças (Período)</span><strong id="totalPresencas">0</strong></div>
                 </div>
                 <div class="stat-card danger">
                     <div class="stat-icon">×</div>
-                    <div><span>Ausentes</span><strong id="totalAusentes">0</strong></div>
+                    <div><span>Ausentes (Período)</span><strong id="totalAusentes">0</strong></div>
                 </div>
                 <div class="stat-card warning">
                     <div class="stat-icon">★</div>
-                    <div><span>Visitantes</span><strong id="totalVisitantes">0</strong></div>
+                    <div><span>Visitantes (Período)</span><strong id="totalVisitantes">0</strong></div>
                 </div>
                 <div class="stat-card money">
                     <div class="stat-icon">R$</div>
-                    <div><span>Ofertas do Dia</span><strong id="totalOfertas">R$ 0,00</strong></div>
+                    <div><span>Ofertas (Período)</span><strong id="totalOfertas">R$ 0,00</strong></div>
                 </div>
             </div>
 
-            <!-- GRÁFICOS NO DASHBOARD -->
+            <!-- GRÁFICOS NO DASHBOARD (INCLUINDO OFERTAS) -->
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">ANÁLISE</span><h2>Gráficos de Desempenho</h2></div>
+                    <div><span class="eyebrow">ANÁLISE</span><h2>Gráficos de Desempenho e Ofertas</h2></div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
                     <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
-                        <canvas id="graficoPresencaDia"></canvas>
+                        <canvas id="graficoPresencaPeriodo"></canvas>
+                    </div>
+                    <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
+                        <canvas id="graficoOfertasPeriodo"></canvas>
                     </div>
                     <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--border); height:280px; position:relative;">
                         <canvas id="graficoAlunosStatus"></canvas>
@@ -125,7 +138,7 @@
 
             <div class="panel">
                 <div class="panel-header">
-                    <div><span class="eyebrow">RESUMO</span><h2>Movimento do dia</h2></div>
+                    <div><span class="eyebrow">RESUMO</span><h2>Resumo do Período</h2></div>
                 </div>
                 <div id="resumoDoDia" class="daily-summary"></div>
             </div>
@@ -360,7 +373,7 @@
             </div>
         </section>
 
-        <!-- TELA DE AULA (NOVA / EDITAR) -->
+        <!-- TELA DE AULA -->
         <section id="telaAula" class="hidden">
             <div class="page-header">
                 <div>
@@ -621,6 +634,6 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="script.js?v=11"></script>
+    <script src="script.js?v=12"></script>
 </body>
 </html>
