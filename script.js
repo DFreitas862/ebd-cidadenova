@@ -1,5 +1,5 @@
 /* =========================================================
-   EBD MANAGER PRO - SCRIPT COMPLETO COM EDIÇÃO DE AULA
+   EBD MANAGER PRO - SCRIPT COMPLETO COM PERÍODO & GRÁFICO DE OFERTAS
    ========================================================= */
 
 let supabaseClient = null;
@@ -12,20 +12,25 @@ let classeAtual = null;
 let aulaEditandoId = null;
 let alunoEditando = null;
 let graficoPresencaInstancia = null;
+let graficoOfertasInstancia = null;
 let graficoStatusInstancia = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-    const data = document.getElementById("dataDashboard");
-    if (data) data.value = obterHoje();
+    const hoje = obterHoje();
+    const dataInicio = document.getElementById("dataInicioDash");
+    const dataFim = document.getElementById("dataFimDash");
+
+    if (dataInicio) dataInicio.value = hoje;
+    if (dataFim) dataFim.value = hoje;
 
     const dataRel = document.getElementById("dataRelatorio");
-    if (dataRel) dataRel.value = obterHoje();
+    if (dataRel) dataRel.value = hoje;
 
     const finData = document.getElementById("finData");
-    if (finData) finData.value = obterHoje();
+    if (finData) finData.value = hoje;
 
     const pData = document.getElementById("prontuarioData");
-    if (pData) pData.value = obterHoje();
+    if (pData) pData.value = hoje;
 
     if (window.supabase && typeof SUPABASE_URL !== 'undefined') {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -139,20 +144,25 @@ function voltarDashboard() {
 
 function atualizarDashboard() {
     mostrarEstatisticasDashboard();
-    mostrarResumoDoDia();
+    mostrarResumoDoPeríodo();
     mostrarClasses();
     renderizarGraficosDashboard();
+}
+
+function filtrarAulasPorPeriodo() {
+    const inicio = document.getElementById("dataInicioDash")?.value || obterHoje();
+    const fim = document.getElementById("dataFimDash")?.value || obterHoje();
+    return aulas.filter(a => a.data >= inicio && a.data <= fim);
 }
 
 function mostrarEstatisticasDashboard() {
     let totalAlunosAtivos = 0;
     classes.forEach(c => { totalAlunosAtivos += c.alunos.filter(a => a.ativo).length; });
 
-    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+    const aulasPeriodo = filtrarAulasPorPeriodo();
 
     let presencas = 0, ausentes = 0, visitantes = 0, ofertas = 0;
-    aulasDoDia.forEach(a => {
+    aulasPeriodo.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; else ausentes++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
@@ -166,26 +176,25 @@ function mostrarEstatisticasDashboard() {
     document.getElementById("totalOfertas").textContent = formatarMoeda(ofertas);
 }
 
-function mostrarResumoDoDia() {
+function mostrarResumoDoPeríodo() {
     const container = document.getElementById("resumoDoDia");
     if (!container) return;
-    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+    const aulasPeriodo = filtrarAulasPorPeriodo();
 
-    if (aulasDoDia.length === 0) {
+    if (aulasPeriodo.length === 0) {
         container.innerHTML = `<div class="daily-summary-card"><span>Aulas</span><strong>0</strong></div><div class="daily-summary-card"><span>Presenças</span><strong>0</strong></div><div class="daily-summary-card"><span>Visitantes</span><strong>0</strong></div><div class="daily-summary-card"><span>Ofertas</span><strong>R$ 0,00</strong></div>`;
         return;
     }
 
     let presencas = 0, visitantes = 0, ofertas = 0;
-    aulasDoDia.forEach(a => {
+    aulasPeriodo.forEach(a => {
         a.presencas.forEach(p => { if (p.status === "presente") presencas++; });
         visitantes += Number(a.visitantes || 0);
         ofertas += Number(a.oferta || 0);
     });
 
     container.innerHTML = `
-        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasDoDia.length}</strong></div>
+        <div class="daily-summary-card"><span>Aulas</span><strong>${aulasPeriodo.length}</strong></div>
         <div class="daily-summary-card"><span>Presenças</span><strong>${presencas}</strong></div>
         <div class="daily-summary-card"><span>Visitantes</span><strong>${visitantes}</strong></div>
         <div class="daily-summary-card"><span>Ofertas</span><strong>${formatarMoeda(ofertas)}</strong></div>
@@ -229,14 +238,14 @@ function mostrarClasses() {
 }
 
 function renderizarGraficosDashboard() {
-    const dataSel = document.getElementById("dataDashboard")?.value || obterHoje();
-    const aulasDoDia = aulas.filter(a => a.data === dataSel);
+    const aulasPeriodo = filtrarAulasPorPeriodo();
 
-    let presencasDia = 0, ausenciasDia = 0;
-    aulasDoDia.forEach(a => {
+    let presencasPeriodo = 0, ausenciasPeriodo = 0, ofertasPeriodo = 0;
+    aulasPeriodo.forEach(a => {
+        ofertasPeriodo += Number(a.oferta || 0);
         a.presencas.forEach(p => {
-            if (p.status === 'presente') presencasDia++;
-            else ausenciasDia++;
+            if (p.status === 'presente') presencasPeriodo++;
+            else ausenciasPeriodo++;
         });
     });
 
@@ -248,19 +257,35 @@ function renderizarGraficosDashboard() {
         });
     });
 
-    const ctx1 = document.getElementById('graficoPresencaDia');
+    // 1. Gráfico de Presenças do Período
+    const ctx1 = document.getElementById('graficoPresencaPeriodo');
     if (ctx1) {
         if (graficoPresencaInstancia) graficoPresencaInstancia.destroy();
         graficoPresencaInstancia = new Chart(ctx1, {
             type: 'doughnut',
             data: {
                 labels: ['Presentes', 'Ausentes'],
-                datasets: [{ data: [presencasDia, ausenciasDia], backgroundColor: ['#10b981', '#ef4444'] }]
+                datasets: [{ data: [presencasPeriodo, ausenciasPeriodo], backgroundColor: ['#10b981', '#ef4444'] }]
             },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Presenças vs Ausências (Data Selecionada)' } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Presenças vs Ausências (Período)' } } }
         });
     }
 
+    // 2. Gráfico de Ofertas do Período
+    const ctxOferta = document.getElementById('graficoOfertasPeriodo');
+    if (ctxOferta) {
+        if (graficoOfertasInstancia) graficoOfertasInstancia.destroy();
+        graficoOfertasInstancia = new Chart(ctxOferta, {
+            type: 'bar',
+            data: {
+                labels: ['Total Arrecadado'],
+                datasets: [{ label: 'Ofertas (R$)', data: [ofertasPeriodo], backgroundColor: ['#10b981'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Ofertas no Período (R$)' } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    // 3. Gráfico de Alunos Ativos vs Inativos
     const ctx2 = document.getElementById('graficoAlunosStatus');
     if (ctx2) {
         if (graficoStatusInstancia) graficoStatusInstancia.destroy();
@@ -276,7 +301,7 @@ function renderizarGraficosDashboard() {
 }
 
 /* =========================================================
-   TELA MATRICULADOS (CORRIGIDA)
+   TELA MATRICULADOS
    ========================================================= */
 function abrirTelaMatriculados() {
     esconderTodasTelas();
@@ -284,8 +309,6 @@ function abrirTelaMatriculados() {
     if (telaMatriculadosEl) {
         telaMatriculadosEl.classList.remove("hidden");
         renderizarTabelaMatriculados();
-    } else {
-        console.error("Elemento telaMatriculados não encontrado no HTML.");
     }
 }
 
@@ -501,7 +524,6 @@ async function salvarAula() {
     const aulaId = aulaEditandoId ? aulaEditandoId : gerarId();
 
     if (aulaEditandoId) {
-        // Atualiza a aula existente
         await supabaseClient.from('aulas').update({
             data,
             tema,
@@ -510,10 +532,8 @@ async function salvarAula() {
             oferta
         }).eq('id', aulaId);
 
-        // Remove presenças antigas para reinserir as atualizadas
         await supabaseClient.from('presencas').delete().eq('aula_id', aulaId);
     } else {
-        // Insere nova aula
         const { error: errAula } = await supabaseClient.from('aulas').insert([{
             id: aulaId,
             classe_id: classeAtual.id,
@@ -526,7 +546,6 @@ async function salvarAula() {
         if (errAula) { alert("Erro ao salvar aula."); return; }
     }
 
-    // Salva as presenças
     const itens = document.querySelectorAll("#listaChamada .attendance-item");
     for (let item of itens) {
         const alunoId = item.getAttribute("data-aluno-id");
@@ -537,17 +556,6 @@ async function salvarAula() {
             aula_id: aulaId,
             aluno_id: alunoId,
             status
-        }]);
-    }
-
-    if (oferta > 0 && !aulaEditandoId) {
-        await supabaseClient.from('financeiro_caixa').insert([{
-            id: gerarId(),
-            tipo_movimento: 'receita',
-            categoria: 'Oferta de Escola Dominical',
-            descricao: `Oferta da Aula (${classeAtual.nome} - ${formatarData(data)})`,
-            valor: oferta,
-            data_movimento: data
         }]);
     }
 
@@ -752,24 +760,8 @@ function renderizarTelaFinancas() {
 
     let totalEntradas = 0;
     let totalSaidas = 0;
-    let totalOfertasAulas = 0;
-    aulas.forEach(a => { totalOfertasAulas += Number(a.oferta || 0); });
-
-    totalEntradas += totalOfertasAulas;
 
     let listaCompleta = [...financas];
-    if (totalOfertasAulas > 0) {
-        listaCompleta.push({
-            id: 'auto-oferta',
-            data_movimento: obterHoje(),
-            tipo_movimento: 'receita',
-            categoria: 'Oferta de Escola Dominical',
-            descricao: 'Soma automática das ofertas das aulas',
-            valor: totalOfertasAulas,
-            automatico: true
-        });
-    }
-
     listaCompleta.sort((a, b) => b.data_movimento.localeCompare(a.data_movimento));
 
     listaCompleta.forEach(f => {
@@ -777,7 +769,7 @@ function renderizarTelaFinancas() {
         else totalSaidas += Number(f.valor || 0);
 
         const badgeCor = f.tipo_movimento === 'receita' ? 'badge-ativo' : 'badge-inativo';
-        const botaoExcluir = f.automatico ? '-' : `<button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="excluirLancamentoFinanceiro('${f.id}')">Excluir</button>`;
+        const botaoExcluir = `<button class="btn btn-danger" style="padding:4px 8px; font-size:0.75rem;" onclick="excluirLancamentoFinanceiro('${f.id}')">Excluir</button>`;
 
         tbody.innerHTML += `
             <tr>
